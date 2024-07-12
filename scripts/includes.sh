@@ -161,9 +161,33 @@ function get_rclone_remote_list() {
     done
 }
 
-function init_actual_env(){
-    
+function init_actual_sync_list() {
+    ACTUAL_BUDGET_SYNC_ID_LIST=()
 
+    local i=0
+    local ACTUAL_BUDGET_SYNC_ID_X_REFER
+
+    # for multiple
+    while true; do
+        ACTUAL_BUDGET_SYNC_ID_X_REFER="ACTUAL_BUDGET_SYNC_ID_${i}"
+        get_env "${ACTUAL_BUDGET_SYNC_ID_X_REFER}"
+    
+        if [[ -z "${!ACTUAL_BUDGET_SYNC_ID_X_REFER}" ]]; then        
+            break
+        fi
+        
+        ACTUAL_BUDGET_SYNC_ID_LIST=(${ACTUAL_BUDGET_SYNC_ID_LIST[@]} ${!ACTUAL_BUDGET_SYNC_ID_X_REFER})
+
+        ((i++))
+    done
+
+    for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+    do
+        color yellow "ACTUAL_BUDGET_SYNC_ID: ${ACTUAL_BUDGET_SYNC_ID_X}"
+    done
+}
+
+function init_actual_env(){
     # ACTUAL BUDGET
     get_env ACTUAL_BUDGET_URL
     ACTUAL_BUDGET_URL="${ACTUAL_BUDGET_URL:-"https://localhost:5006"}"
@@ -174,33 +198,10 @@ function init_actual_env(){
     color yellow "ACTUAL_BUDGET_PASSWORD: *****"
 
     get_env ACTUAL_BUDGET_SYNC_ID
-    ACTUAL_BUDGET_SYNC_ID="${ACTUAL_BUDGET_SYNC_ID:-""}"
-    color yellow "ACTUAL_BUDGET_SYNC_ID: ${ACTUAL_BUDGET_SYNC_ID}"
-    
-    ACTUAL_BUDGET_SYNC_ID_LIST=(${ACTUAL_BUDGET_SYNC_ID})
-    local i=0
-    local ACTUAL_BUDGET_SYNC_ID_X_REFER
+    ACTUAL_BUDGET_SYNC_ID="${ACTUAL_BUDGET_SYNC_ID:-""}"    
+    ACTUAL_BUDGET_SYNC_ID_0="${ACTUAL_BUDGET_SYNC_ID}"
 
-    # for multiple
-    while true; do
-        ACTUAL_BUDGET_SYNC_ID_X_REFER="ACTUAL_BUDGET_SYNC_ID_${i}"
-        get_env "${ACTUAL_BUDGET_SYNC_ID_X_REFER}"
-
-        if [[ -z "${!ACTUAL_BUDGET_SYNC_ID_X_REFER}" ]]; then
-            break
-        fi
-
-        color blue "${ACTUAL_BUDGET_SYNC_ID_X_REFER}"
-        ACTUAL_BUDGET_SYNC_ID_LIST+=(${ACTUAL_BUDGET_SYNC_ID_X_REFER})
-
-        ((i++))
-    done
-
-    for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
-    do
-        color blue "${ACTUAL_BUDGET_SYNC_ID_X}"
-    done
-    exit 1
+    init_actual_sync_list
 }
 
 ########################################

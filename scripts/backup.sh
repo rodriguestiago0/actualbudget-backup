@@ -6,23 +6,28 @@ function clear_dir() {
     rm -rf backup
 }
 
-function backup_init() {
+function backup_file_name () {
     NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
     # backup zip file
-    BACKUP_FILE_ZIP="backup/backup.${NOW}.zip"
+    BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.zip"
 }
 
 function download_actual_budget() {
     color blue "Downloading Actual Budger backup"
-    color green "Login into Actual Budger"
-    local TOKEN="$(curl --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data-raw "{\"loginMethod\": \"password\",\"password\": \"${ACTUAL_BUDGET_PASSWORD}\"}"  | jq --raw-output '.data.token'
-)"
+    color green "Login into Actual Budget" 
 
-    color green "Get file id"
-    local FILE_ID=$(curl --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID\") ] | any) | .fileId")
+    local TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data-raw "{\"loginMethod\": \"password\",\"password\": \"${ACTUAL_BUDGET_PASSWORD}\"}"  | jq --raw-output '.data.token')"
 
-    color green "Downloading backup files"
-    curl --location "${ACTUAL_BUDGET_URL}/sync/download-user-file" --header "X-ACTUAL-TOKEN: $TOKEN" --header "X-ACTUAL-FILE-ID: $FILE_ID" --output "${BACKUP_FILE_ZIP}"
+    for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+    do
+        color green "Get file id for ${ACTUAL_BUDGET_SYNC_ID_X}"
+        backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
+
+        local FILE_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .fileId")
+        color green "Downloading backup files"
+        curl -s --location "${ACTUAL_BUDGET_URL}/sync/download-user-file" --header "X-ACTUAL-TOKEN: $TOKEN" --header "X-ACTUAL-FILE-ID: $FILE_ID" --output "${BACKUP_FILE_ZIP}"
+    done
+   
 }
 
 function backup() {
@@ -35,22 +40,29 @@ function backup() {
 
 
 function upload() {
-    if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
-        color red "Error downloading file"
+    for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+    do
+        backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
+        if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
+            color red "Error downloading file"
 
-        exit 1
-    fi
-
-
+            exit 1
+        fi
+    done
+    
     # upload
     for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
     do
-        color blue "upload backup file to storage system $(color yellow "[${BACKUP_FILE_ZIP} -> ${RCLONE_REMOTE_X}]")"
+        for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+        do
+            backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
+            color blue "upload backup file to storage system $(color yellow "[${BACKUP_FILE_ZIP} -> ${RCLONE_REMOTE_X}]")"
 
-        rclone ${RCLONE_GLOBAL_FLAG} copy "${BACKUP_FILE_ZIP}" "${RCLONE_REMOTE_X}"
-        if [[ $? != 0 ]]; then
-            color red "upload failed"
-        fi
+            rclone ${RCLONE_GLOBAL_FLAG} copy "${BACKUP_FILE_ZIP}" "${RCLONE_REMOTE_X}"
+            if [[ $? != 0 ]]; then
+                color red "upload failed"
+            fi
+        done
     done
 
 }
@@ -81,9 +93,8 @@ color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 init_env
 
 check_rclone_connection
-#
+
 clear_dir
-backup_init
 backup
 upload
 clear_dir
