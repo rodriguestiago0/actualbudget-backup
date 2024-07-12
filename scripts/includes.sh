@@ -198,7 +198,12 @@ function init_actual_env(){
     color yellow "ACTUAL_BUDGET_PASSWORD: *****"
 
     get_env ACTUAL_BUDGET_SYNC_ID
-    ACTUAL_BUDGET_SYNC_ID="${ACTUAL_BUDGET_SYNC_ID:-""}"    
+
+    if [[ -z "${!ACTUAL_BUDGET_SYNC_ID}" ]]; then        
+        colot red "Invalid sync id"
+        exit 1
+    fi 
+    
     ACTUAL_BUDGET_SYNC_ID_0="${ACTUAL_BUDGET_SYNC_ID}"
 
     init_actual_sync_list
