@@ -4,7 +4,8 @@ services:
   backup:
     image: rodriguestiago0/actualbudget-backup:latest
     restart: always
-    # environment:
+    environment:
+      - PGID
     #   RCLONE_REMOTE_NAME: 'ActualBudgetBackup'
     #   RCLONE_REMOTE_DIR: '/ActualBudgetBackup/'
     #   RCLONE_GLOBAL_FLAG: ''
@@ -18,3 +19,8 @@ services:
     volumes:
       - actualbudget-rclone-data:/config/
     #   - /path/to/env:/.env
+    
+volumes:
+  actualbudget-rclone-data:
+    external: true
+    name: actualbudget-rclone-data

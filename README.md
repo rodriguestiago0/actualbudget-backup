@@ -91,6 +91,18 @@ docker run -d \
 
 > **Note:** All environment variables have default values, you can use the docker image without setting any environment variables.
 
+### ACTUAL_BUDGET_URL
+
+URL for the actual budget server
+
+### ACTUAL_BUDGET_PASSWORD
+
+Password for the actual budget serer
+
+### ACTUAL_BUDGET_SYNC_ID
+
+Actual Sync ID. Check settings.
+
 #### RCLONE_REMOTE_NAME
 
 The name of the Rclone remote, which needs to be consistent with the remote name in the rclone config.
