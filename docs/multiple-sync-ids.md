@@ -6,8 +6,6 @@ You can achieve this by setting the following environment variables.
 
 <br>
 
-
-
 ## Usage
 
 To set additional remote destinations, use the environment variables `ACTUAL_BUDGET_SYNC_ID_N` where:
@@ -32,3 +30,5 @@ environment:
 ```
 
 With the above example, both sync_ids will be backup: `random-guid`, `random-guid-1` and `random-guid-2` but not the `random-guid-4`.
+
+Note: Sync ID are present in the settings.
