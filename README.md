@@ -1,4 +1,4 @@
-# Actual Budgett backup
+# Actual Budget backup
 
 Docker containers for [actualbudget](https://actualbudger.org) backup to remote.
 

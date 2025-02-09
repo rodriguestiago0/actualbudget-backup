@@ -10,7 +10,7 @@ There are two parts to the setup, one to tell the backup system how to connect t
 
 The backup system uses Rclone to talk to the storage system. At time of writing, Rclone supports 55 different storage systems, so this guide will not tell you exactly how to setup your storage system, for that you should check out [Rclone's excellent documentation](https://rclone.org/docs/). However these are the required steps to get it working in this system.
 
-1. Run the following code to start the setup. Note: if you're running this on Windows, replace the `\` at the end of each line with `\`` (backticks)
+1. Run the following code to start the setup. Note: if you're running this on Windows, replace the `\` at the end of each line with `` ` `` (backticks)
 
    ```shell
    docker run --rm -it \
@@ -32,7 +32,7 @@ Next we need to tell the container how it's going to talk to your Actual server.
 
 `ACTUAL_BUDGET_URL` - First, we need to tell it the url of the website, including the protocol, and the port (if applicable) (NB: Do NOT add a trailing / to this. For e.g. `ACTUAL_BUDGET_URL: 'https://acutal.example.com'` will work, but `ACTUAL_BUDGET_URL: 'https://acutal.example.com/'` will not)
 
-`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains either a `'` or a `\`, you need to escape them e.g. if your password was `123Super'Pass\word` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Pass\\word'`. If your password contains `"`, change it so it doesn't. It's possible to make that work, but it's painful.
+`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains either a `'` or a `\`, you need to escape them e.g. if your password was `123Super'Pass\word` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Pass\\word'`. If your password contains any of `"`, `$`, or a space, change it so it doesn't. It's possible to make that work, but it's painful.
 
 `ACTUAL_BUDGET_SYNC_ID` - Finally, this identifies the budget on the server. To get this ID, open Actual in your web browser, and go to `Settings`. At the bottom, click `Show advanced settings`, and the `Sync ID` should be in the top section there.
 
