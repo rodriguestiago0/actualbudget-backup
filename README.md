@@ -53,7 +53,7 @@ docker run --rm -it \
 
 #### Use Docker Compose (Recommend)
 
-Download `docker-compose.yml` to you machine, edit environment variables and start it.
+Download `docker-compose.yml` to you machine, edit the [environment variables](#environment-variables) and start it.
 
 You need to go to the directory where the `docker-compose.yml` file is saved.
 
