@@ -4,7 +4,7 @@ This doc should contain the minimal steps required to get a working backup going
 
 ## Setup
 
-There are two parts to the setup, one to tell the backup system how to connect to your Actual server, and the other to tell the backup system how to connect to the storage system you are going to save the backup to. We will setup the storage first, and then the connection to Actual.
+There are two parts to the setup, one to tell the backup system how to connect to your Actual server, and the other to tell the backup system how to connect to the storage system you are going to save the backup to. This guide will cover setting up the storage first, and then the connection to Actual.
 
 ### Storage
 
@@ -26,13 +26,13 @@ The only thing to note that we're doing differently is that Rclone is running in
 
 ### Connection to Actual
 
-Next we need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. I will go over the mandatory and most used fields here, for the others, check the [README](/README.md) for what they do.
+Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here, for the others, check the [README](/README.md) for what they do.
 
 #### Mandatory fields
 
-`ACTUAL_BUDGET_URL` - First, we need to tell it the url of the website, including the protocol, and the port (if applicable) (NB: Do NOT add a trailing / to this. For e.g. `ACTUAL_BUDGET_URL: 'https://acutal.example.com'` will work, but `ACTUAL_BUDGET_URL: 'https://acutal.example.com/'` will not)
+`ACTUAL_BUDGET_URL` - First, set the url of the Actual Server, including the protocol, (and the port if applicable) (NB: Do NOT add a trailing / to this. e.g. `ACTUAL_BUDGET_URL: 'https://acutal.example.com'` will work, but `ACTUAL_BUDGET_URL: 'https://acutal.example.com/'` will not)
 
-`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains either a `'` or a `\`, you need to escape them e.g. if your password was `123Super'Pass\word` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Pass\\word'`. If your password contains any of `"`, `$`, or a space, change it so it doesn't. It's possible to make that work, but it's painful.
+`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any singly quotes (`'`), you need to escape them e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Password'`. If your password contains any of `"`, `$`, `\` or a space, change it so it doesn't. It's possible to make that work, but it's painful.)
 
 `ACTUAL_BUDGET_SYNC_ID` - Finally, this identifies the budget on the server. To get this ID, open Actual in your web browser, and go to `Settings`. At the bottom, click `Show advanced settings`, and the `Sync ID` should be in the top section there.
 
@@ -55,3 +55,13 @@ docker compose run --rm backup backup
 ```
 
 If everything is ok, this will run for a few seconds, and will finish on a line similar to `upload backup file to storage system [backup/backup.<ID>.20250208.zip -> ActualBudgetBackup:/ActualBudgetBackup]`. If you check your storage system, you should now have a file called `backup.<ID>.20250208.zip` stored within there. If anything went wrong, go back and check all your env variables. If you can't work out what's gone wrong, file an issue in this repo.
+
+## Starting the automatic backup
+
+If your test succeeded, you can now start docker running permanently. To do this, issue the following command:
+
+```shell
+docker compose up -d
+```
+
+This will start the container running, and it will automatically start every time docker does. The backup will be performed at whatever time you specified for `CRON`, or at midnight UTC if you didn't specify.
