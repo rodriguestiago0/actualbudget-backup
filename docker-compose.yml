@@ -5,13 +5,12 @@ services:
     image: rodriguestiago0/actualbudget-backup:latest
     restart: always
     environment:
-      - PGID
     #   RCLONE_REMOTE_NAME: 'ActualBudgetBackup'
     #   RCLONE_REMOTE_DIR: '/ActualBudgetBackup/'
     #   RCLONE_GLOBAL_FLAG: ''
-    #   ACTUAL_BUDGET_URL: 'https://localhost:5006'
-    #   ACTUAL_BUDGET_PASSWORD: ''
-    #   ACTUAL_BUDGET_SYNC_ID: ''
+        ACTUAL_BUDGET_URL: 'https://actual.example.com'
+        ACTUAL_BUDGET_PASSWORD: ''
+        ACTUAL_BUDGET_SYNC_ID: ''
     #   CRON: '0 0 * * *'
     #   BACKUP_FILE_SUFFIX: '%Y%m%d'
     #   BACKUP_KEEP_DAYS: 0
