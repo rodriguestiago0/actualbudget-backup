@@ -99,7 +99,7 @@ Password for the actual budget server. Single quotes must be escaped with a back
 
 Actual Sync ID. You can find this by logging into your Actual server in a web browser, go to `settings > show advanced settings` and the sync ID should be in the top block there.
 
-#### RCLONE_REMOTE_NAME
+### RCLONE_REMOTE_NAME
 
 The name of the Rclone remote, which needs to be consistent with the remote name in the rclone config.
 
@@ -117,13 +117,13 @@ docker run --rm -it \
 
 Default: `ActualBudgetBackup`
 
-#### RCLONE_REMOTE_DIR
+### RCLONE_REMOTE_DIR
 
 The folder where backup files are stored in the storage system.
 
 Default: `/ActualBudgetBackup/`
 
-#### RCLONE_GLOBAL_FLAG
+### RCLONE_GLOBAL_FLAG
 
 Rclone global flags, see [flags](https://rclone.org/flags/).
 
@@ -131,19 +131,19 @@ Rclone global flags, see [flags](https://rclone.org/flags/).
 
 Default: `''`
 
-#### CRON
+### CRON
 
 Schedule to run the backup script, based on [`supercronic`](https://github.com/aptible/supercronic). You can test the rules [here](https://crontab.guru/#0_0_*_*_*).
 
 Default: `0 0 * * *` (run the script at 12AM every day)
 
-#### BACKUP_KEEP_DAYS
+### BACKUP_KEEP_DAYS
 
 Only keep last a few days backup files in the storage system. Set to `0` to keep all backup files.
 
 Default: `0`
 
-#### BACKUP_FILE_SUFFIX
+### BACKUP_FILE_SUFFIX
 
 Each backup file is suffixed by default with `%Y%m%d`. If you back up your budget multiple times a day, that suffix is not unique any more. This environment variable allows you to append a unique suffix to that date to create a unique backup name.
 
@@ -155,7 +155,7 @@ Please use the [date man page](https://man7.org/linux/man-pages/man1/date.1.html
 
 Default: `%Y%m%d`
 
-#### TIMEZONE
+### TIMEZONE
 
 Set your timezone name.
 
@@ -168,7 +168,7 @@ Default: `UTC`
 
 > **You don't need to change these environment variables unless you know what you are doing.**
 
-#### BACKUP_FILE_DATE
+### BACKUP_FILE_DATE
 
 You should use the [`BACKUP_FILE_SUFFIX`](#backup_file_suffix) environment variable instead.
 
@@ -178,7 +178,7 @@ Same rule as [`BACKUP_FILE_DATE_SUFFIX`](#backup_file_date_suffix).
 
 Default: `%Y%m%d`
 
-#### BACKUP_FILE_DATE_SUFFIX
+### BACKUP_FILE_DATE_SUFFIX
 
 You should use the [`BACKUP_FILE_SUFFIX`](#backup_file_suffix) environment variable instead.
 
