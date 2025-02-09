@@ -93,7 +93,7 @@ URL for the actual budget server, without a trailing `/`
 
 ### ACTUAL_BUDGET_PASSWORD
 
-Password for the actual budget server. Single quotes and backslashes must be escaped with a backslash. Double quotes, spaces, and the dollar symbol will break the script at present, so change your password if it has those symbols in it.
+Password for the actual budget server. Single quotes must be escaped with a backslash. Double quotes, spaces, backslashes and the dollar symbol will break the script at present, so change your password if it has those symbols in it.
 
 ### ACTUAL_BUDGET_SYNC_ID
 
