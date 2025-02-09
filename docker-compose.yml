@@ -1,5 +1,3 @@
-version: '3.4'
-
 services:
   backup:
     image: rodriguestiago0/actualbudget-backup:latest
