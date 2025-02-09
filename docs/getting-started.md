@@ -26,25 +26,25 @@ The only thing to note that we're doing differently is that Rclone is running in
 
 ### Connection to Actual
 
-Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here, for the others, check the [README](/README.md) for what they do.
+Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
 
 #### Mandatory fields
 
 `ACTUAL_BUDGET_URL` - First, set the url of the Actual Server, including the protocol, (and the port if applicable) (NB: Do NOT add a trailing / to this. e.g. `ACTUAL_BUDGET_URL: 'https://acutal.example.com'` will work, but `ACTUAL_BUDGET_URL: 'https://acutal.example.com/'` will not)
 
-`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any singly quotes (`'`), you need to escape them e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Password'`. If your password contains any of `"`, `$`, `\` or a space, change it so it doesn't. It's possible to make that work, but it's painful.)
+`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any singly quotes (`'`), you need to escape them e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Password'`. If your password contains any of `"`, `$`, or `\`; change it so it doesn't. It's possible to make that work, but it's painful.)
 
 `ACTUAL_BUDGET_SYNC_ID` - Finally, this identifies the budget on the server. To get this ID, open Actual in your web browser, and go to `Settings`. At the bottom, click `Show advanced settings`, and the `Sync ID` should be in the top section there.
 
 #### Optional fields you might need to change
 
-`ACTUAL_BUDGET_SYNC_ID_1` If you have multiple budgets to backup, you can add more sync IDs by using the `ACTUAL_BUDGET_SYNC_ID_1: ''` field to hold the second ID, and you can add as many of those as you want by incrementing the number `ACTUAL_BUDGET_SYNC_ID_2`, `ACTUAL_BUDGET_SYNC_ID_3`... etc.
-
-`CRON` - This line tells the container what time to perform the backup. By default, it happens at midnight every day. This is fine if your computer is on 24/7, but if the machine you're running this on is only active in the day, you might want to change it to happen when you know it will be on. To do this, enter any valid cron string, but note that the default config only allows one backup per day, so making it occur more frequently will overwrite the first backup.
+`CRON` - This line tells the container what time to perform the backup. By default, it happens at midnight UTC every day. This is fine if your computer is on 24/7, but if the machine you're running this on is only active in the day, you might want to change it to happen when you know it will be on. To do this, enter any valid cron string, but note that the default config only allows one backup per day, so making it occur more frequently will overwrite the first backup.
 
 `TIMEZONE` - your local timezone. If you're changing the cron time, you will also want to set the timezone, else it will not run at the time you want it to. It's entered in standard TZ data format. e.g. to set the timezone to UK time, you'd set it to `TIMEZONE: 'Europe/London'`
 
 `BACKUP_KEEP_DAYS` - by default, this tool never deletes old backups. To change this behaviour, set this to the number of days to keep backups for. e.g. for a weeks worth of backups, set `BACKUP_KEEP_DAYS: 7`
+
+`ACTUAL_BUDGET_SYNC_ID_1` If you have multiple budgets to backup, you can add more sync IDs by using the `ACTUAL_BUDGET_SYNC_ID_1: ''` field to hold the second ID, and you can add as many of those as you want by incrementing the number `ACTUAL_BUDGET_SYNC_ID_2`, `ACTUAL_BUDGET_SYNC_ID_3`… etc.
 
 ## Testing
 

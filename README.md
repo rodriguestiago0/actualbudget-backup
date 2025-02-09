@@ -4,19 +4,17 @@ Docker containers for [actualbudget](https://actualbudger.org) backup to remote.
 
 Heavily inspired at [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup)
 
-## Usage
-
 > **Important:** We assume you already read the `actualbudget` [documentation](https://actualbudget.org/docs/), and have an instance up and running.
 
-### Getting started guide
+## Getting started guide
 
-The fastest way to get started is with the [getting started guide](docs/getting-started.md), which contains the required config to get running as quickly as possible. This readme contains the full details of all the extras you might need to run as well.
+The fastest way to get started is with the [getting started guide](docs/getting-started.md), which contains the required config to get running as quickly as possible. This README contains the full details of all the extras you might need to run as well.
+
+## Usage
 
 ### Configure Rclone (⚠️ MUST READ ⚠️)
 
 > **For backup, you need to configure Rclone first, otherwise the backup tool will not work.**
->
-> **For restore, it is not necessary.**
 
 We upload the backup files to the storage system by [Rclone](https://rclone.org/).
 
