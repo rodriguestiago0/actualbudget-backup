@@ -1,22 +1,24 @@
-# Actual Budgett backup
+# Actual Budget backup
 
 Docker containers for [actualbudget](https://actualbudger.org) backup to remote.
 
 Heavily inspired at [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup)
 
-## Usage
+> **Important:** We assume you already read the `actualbudget` [documentation](https://actualbudget.org/docs/), and have an instance up and running.
 
-> **Important:** We assume you already read the `actualbudget` [documentation](https://actualbudget.org/docs/). And have an insteance up and running.
+## Getting started guide
+
+The fastest way to get started is with the [getting started guide](docs/getting-started.md), which contains the required config to get running as quickly as possible. This README contains the full details of all the extras you might need to run as well.
+
+## Usage
 
 ### Configure Rclone (⚠️ MUST READ ⚠️)
 
 > **For backup, you need to configure Rclone first, otherwise the backup tool will not work.**
-> 
-> **For restore, it is not necessary.**
 
 We upload the backup files to the storage system by [Rclone](https://rclone.org/).
 
-Visit [GitHub](https://github.com/rclone/rclone) for more storage system tutorials. Different systems get tokens differently.
+Visit [Rclone's documentation](https://rclone.org/docs/) for more storage system tutorials. Different systems get tokens differently.
 
 #### Configure and Check
 
@@ -47,15 +49,11 @@ docker run --rm -it \
 # drive_type = personal
 ```
 
-<br>
-
-
-
 ### Backup
 
 #### Use Docker Compose (Recommend)
 
-Download `docker-compose.yml` to you machine, edit environment variables and start it.
+Download `docker-compose.yml` to you machine, edit the [environment variables](#environment-variables) and start it.
 
 You need to go to the directory where the `docker-compose.yml` file is saved.
 
@@ -73,7 +71,7 @@ docker-compose restart
 docker-compose down
 ```
 
-#### Automatic Backups
+#### Automatic Backups without docker compose
 
 Start the backup container with default settings. (automatic backup at 12AM every day)
 
@@ -85,25 +83,23 @@ docker run -d \
   rodriguestiago0/actualbudget-backup:latest
 ```
 
-<br>
-
 ## Environment Variables
 
-> **Note:** All environment variables have default values, you can use the docker image without setting any environment variables.
+> **Note:** The container will run with no environment variables specified without error, however if you haven't set at least `ACTUAL_BUDGET_URL`, `ACTUAL_BUDGET_PASSWORD`, and `ACTUAL_BUDGET_SYNC_ID`, no backup will successfully happen.
 
 ### ACTUAL_BUDGET_URL
 
-URL for the actual budget server
+URL for the actual budget server, without a trailing `/`
 
 ### ACTUAL_BUDGET_PASSWORD
 
-Password for the actual budget serer
+Password for the actual budget server. Single quotes must be escaped with a backslash. Double quotes, spaces, backslashes and the dollar symbol will break the script at present, so change your password if it has those symbols in it.
 
 ### ACTUAL_BUDGET_SYNC_ID
 
-Actual Sync ID. Check settings.
+Actual Sync ID. You can find this by logging into your Actual server in a web browser, go to `settings > show advanced settings` and the sync ID should be in the top block there.
 
-#### RCLONE_REMOTE_NAME
+### RCLONE_REMOTE_NAME
 
 The name of the Rclone remote, which needs to be consistent with the remote name in the rclone config.
 
@@ -121,13 +117,13 @@ docker run --rm -it \
 
 Default: `ActualBudgetBackup`
 
-#### RCLONE_REMOTE_DIR
+### RCLONE_REMOTE_DIR
 
 The folder where backup files are stored in the storage system.
 
 Default: `/ActualBudgetBackup/`
 
-#### RCLONE_GLOBAL_FLAG
+### RCLONE_GLOBAL_FLAG
 
 Rclone global flags, see [flags](https://rclone.org/flags/).
 
@@ -135,22 +131,21 @@ Rclone global flags, see [flags](https://rclone.org/flags/).
 
 Default: `''`
 
-#### CRON
+### CRON
 
 Schedule to run the backup script, based on [`supercronic`](https://github.com/aptible/supercronic). You can test the rules [here](https://crontab.guru/#0_0_*_*_*).
 
 Default: `0 0 * * *` (run the script at 12AM every day)
 
-
-#### BACKUP_KEEP_DAYS
+### BACKUP_KEEP_DAYS
 
 Only keep last a few days backup files in the storage system. Set to `0` to keep all backup files.
 
 Default: `0`
 
-#### BACKUP_FILE_SUFFIX
+### BACKUP_FILE_SUFFIX
 
-Each backup file is suffixed by default with `%Y%m%d`. If you back up your budget multiple times a day, that suffix is not unique anymore. This environment variable allows you to append a unique suffix to that date to create a unique backup name.
+Each backup file is suffixed by default with `%Y%m%d`. If you back up your budget multiple times a day, that suffix is not unique any more. This environment variable allows you to append a unique suffix to that date to create a unique backup name.
 
 You can use any character except for `/` since it cannot be used in Linux file names.
 
@@ -160,7 +155,7 @@ Please use the [date man page](https://man7.org/linux/man-pages/man1/date.1.html
 
 Default: `%Y%m%d`
 
-#### TIMEZONE
+### TIMEZONE
 
 Set your timezone name.
 
@@ -168,13 +163,12 @@ Here is timezone list at [wikipedia](https://en.wikipedia.org/wiki/List_of_tz_da
 
 Default: `UTC`
 
-
 <details>
 <summary><strong>※ Other environment variables</strong></summary>
 
 > **You don't need to change these environment variables unless you know what you are doing.**
 
-#### BACKUP_FILE_DATE
+### BACKUP_FILE_DATE
 
 You should use the [`BACKUP_FILE_SUFFIX`](#backup_file_suffix) environment variable instead.
 
@@ -184,7 +178,7 @@ Same rule as [`BACKUP_FILE_DATE_SUFFIX`](#backup_file_date_suffix).
 
 Default: `%Y%m%d`
 
-#### BACKUP_FILE_DATE_SUFFIX
+### BACKUP_FILE_DATE_SUFFIX
 
 You should use the [`BACKUP_FILE_SUFFIX`](#backup_file_suffix) environment variable instead.
 
@@ -199,8 +193,6 @@ Default: `''`
 
 </details>
 
-<br>
-
 ## Using `.env` file
 
 If you prefer using an env file instead of environment variables, you can map the env file containing the environment variables to the `/.env` file in the container.
@@ -210,9 +202,6 @@ docker run -d \
   --mount type=bind,source=/path/to/env,target=/.env \
   rodriguestiago0/actualbudget-backup:latest
 ```
-
-<br>
-
 
 ## Docker Secrets
 
@@ -224,15 +213,9 @@ docker run -d \
   rodriguestiag0/actualbudget-backup:latest
 ```
 
-<br>
-
 ## About Priority
 
 We will use the environment variables first, followed by the contents of the file ending in `_FILE` as defined by the environment variables. Next, we will use the contents of the file ending in `_FILE` as defined in the `.env` file, and finally the values from the `.env` file itself.
-
-<br>
-
-
 
 ## Advance
 
@@ -240,7 +223,6 @@ We will use the environment variables first, followed by the contents of the fil
 - [Multiple sync ids](docs/multiple-sync-ids.md)
 - [Manually trigger a backup](docs/manually-trigger-a-backup.md)
 
-<br>
 
 ## License
 
