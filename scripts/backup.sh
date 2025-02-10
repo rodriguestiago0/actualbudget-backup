@@ -12,12 +12,18 @@ function backup_file_name () {
     BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.zip"
 }
 
+function prepare_login_json() {
+    (printf '%s\0%s\0' "loginMethod" "password" && printf '%s\0%s\0' "password" "${ACTUAL_BUDGET_PASSWORD}") | jq -Rs 'split("\u0000") | . as $a 
+                  | reduce range(0; 2) as $i 
+                  ({}; . + {($a[2*$i]): ($a[2*$i + 1])})' > /tmp/login.json
+}
+
 function download_actual_budget() {
-    color blue "Downloading Actual Budger backup"
+    color blue "Downloading Actual Budget backup"
     color green "Login into Actual Budget" 
-
-    local TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data-raw "{\"loginMethod\": \"password\",\"password\": \"${ACTUAL_BUDGET_PASSWORD}\"}"  | jq --raw-output '.data.token')"
-
+    prepare_login_json
+    local TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data @/tmp/login.json  | jq --raw-output '.data.token')"
+    rm /tmp/login.json
     for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
     do
         color green "Get file id for ${ACTUAL_BUDGET_SYNC_ID_X}"
