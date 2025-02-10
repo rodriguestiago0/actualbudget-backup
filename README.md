@@ -93,7 +93,7 @@ URL for the actual budget server, without a trailing `/`
 
 ### ACTUAL_BUDGET_PASSWORD
 
-Password for the actual budget server. Single quotes must be escaped with a backslash. Double quotes, spaces, backslashes and the dollar symbol will break the script at present, so change your password if it has those symbols in it.
+Password for the actual budget server. If you're setting this through the docker-compose file, Single quotes must be escaped with by doubling them up. e.g. if your password is `SuperGo'oodPassw\ord"1` you would enter `ACTUAL_BUDGET_PASSWORD: 'SuperGo''oodPassw\ord"1'`. If you're using the env file method, you will need to work out your own way to encode your password without breaking the env file.
 
 ### ACTUAL_BUDGET_SYNC_ID
 

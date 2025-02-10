@@ -32,7 +32,7 @@ Next you need to tell the container how it's going to talk to your Actual server
 
 `ACTUAL_BUDGET_URL` - First, set the url of the Actual Server, including the protocol, (and the port if applicable) (NB: Do NOT add a trailing / to this. e.g. `ACTUAL_BUDGET_URL: 'https://acutal.example.com'` will work, but `ACTUAL_BUDGET_URL: 'https://acutal.example.com/'` will not)
 
-`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any singly quotes (`'`), you need to escape them e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super\'Password'`. If your password contains any of `"`, `$`, or `\`; change it so it doesn't. It's possible to make that work, but it's painful.)
+`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any single quotes (`'`), you need to escape the by doubling them up e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super''Password'`.
 
 `ACTUAL_BUDGET_SYNC_ID` - Finally, this identifies the budget on the server. To get this ID, open Actual in your web browser, and go to `Settings`. At the bottom, click `Show advanced settings`, and the `Sync ID` should be in the top section there.
 

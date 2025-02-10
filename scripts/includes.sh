@@ -199,8 +199,8 @@ function init_actual_env(){
 
     get_env ACTUAL_BUDGET_SYNC_ID
 
-    if [[ -z "${!ACTUAL_BUDGET_SYNC_ID}" ]]; then        
-        colot red "Invalid sync id"
+    if [[ -z "${ACTUAL_BUDGET_SYNC_ID}" ]]; then        
+        color red "Invalid sync id"
         exit 1
     fi 
     
