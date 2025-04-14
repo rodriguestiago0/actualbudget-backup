@@ -7,7 +7,6 @@ function clear_dir() {
 }
 
 function backup_file_name () {
-    NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
     # backup zip file
     BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.zip"
     color blue "file name \"${BACKUP_FILE_ZIP}\""
@@ -95,9 +94,13 @@ function clear_history() {
     fi
 }
 
+
+
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 
 init_env
+
+NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
 
 check_rclone_connection
 
