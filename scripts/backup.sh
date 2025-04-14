@@ -10,6 +10,7 @@ function backup_file_name () {
     NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
     # backup zip file
     BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.zip"
+    color blue "file name \"${BACKUP_FILE_ZIP}\""
 }
 
 function prepare_login_json() {
