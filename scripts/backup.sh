@@ -51,7 +51,7 @@ function upload() {
     do
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
         if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
-            color red "Error downloading file"
+            color red "File not found \"${BACKUP_FILE_ZIP}\""
 
             exit 1
         fi
