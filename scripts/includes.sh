@@ -187,6 +187,32 @@ function init_actual_sync_list() {
     done
 }
 
+function init_actual_e2e_list(){
+    ACTUAL_BUDGET_E2E_PASSWORD_LIST=()
+
+    local i=0
+    local ACTUAL_BUDGET_E2E_PASSWORD_X_REFER
+
+    # for multiple
+    while true; do
+        ACTUAL_BUDGET_E2E_PASSWORD_X_REFER="ACTUAL_BUDGET_E2E_PASSWORD_${i}"
+        get_env "${ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}"
+    
+        if [[ -z "${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}" ]]; then        
+            break
+        fi
+        
+        ACTUAL_BUDGET_E2E_PASSWORD_LIST=(${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} ${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER})
+
+        ((i++))
+    done
+
+    for ACTUAL_BUDGET_E2E_PASSWORD_X in "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}"
+    do
+        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: ${ACTUAL_BUDGET_E2E_PASSWORD_X}"
+    done
+}
+
 function init_actual_env(){
     # ACTUAL BUDGET
     get_env ACTUAL_BUDGET_URL
@@ -208,8 +234,11 @@ function init_actual_env(){
 
     init_actual_sync_list
 	
+	
 	get_env ACTUAL_BUDGET_E2E_PASSWORD
 	ACTUAL_BUDGET_E2E_PASSWORD_0="${ACTUAL_BUDGET_E2E_PASSWORD}"
+	
+	init_actual_e2e_list
 }
 
 ########################################

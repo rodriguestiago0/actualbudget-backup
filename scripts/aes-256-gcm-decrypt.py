@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import argparse
 from os import environ
 from sys import exit
 from Crypto.Cipher import AES
@@ -10,12 +11,23 @@ RESET = '\033[0m'
 
 #TODO: For environ.get calls check if they are empty before subscripting them
 #TODO: You really should just pass these as command line args from bash as it does not require an export
-#Read from environment
-password = environ.get('E2E_PASS_ARG').encode('utf-8')
+
+#Setup argparse
+parser = argparse.ArgumentParser(description='Process encryption params')
+parser.add_argument('--salt', required=True, help='Base64-ecoded salt value')
+parser.add_argument('--password', required=True, help='The password for key derivation')
+parser.add_argument('--iv', required=True, help='Initialization Vector value')
+parser.add_argument('--authtag', required=True, help='Auth Tag value')
+parser.add_argument('--input', required=True, help='Path to file for decryption')
+parser.add_argument('--output', required=True, help='Path to save decrypted file')
+args = parser.parse_args()
+
+#Read from argparse
+password = args.password.encode('utf-8')
 #Note that ActualBudget uses the base64 encoded salt as-is with no decoding
-salt = environ.get('SALT').encode('utf-8')
-iv_b64 = environ.get('IV')
-auth_tag_b64 = environ.get('AUTH_TAG')
+salt = args.salt.encode('utf-8')
+iv_b64 = args.iv
+auth_tag_b64 = args.authtag
 
 #Check if any variables were not set properly
 check_not_empty = {
@@ -26,11 +38,11 @@ check_not_empty = {
 }
 if not all(check_not_empty.values()):
     empty = [name for name, value in check_not_empty.items() if not value]
-    print(f"{RED}The following required variables are empty:{RESET}", ', '.join(missing))
-    sys.exit(1)
+    print(f"{RED}The following required variables are empty:{RESET}", ', '.join(empty))
+    exit(1)
 #Set input and output paths
-encrypted_file_path = environ.get('BACKUP_FILE_ZIP_ARG')
-decrypted_file_path = environ.get('BACKUP_FILE_ZIP_ARG')[:-4]+"-decrypted.zip"
+encrypted_file_path = args.input
+decrypted_file_path = args.output
 
 # Decode base64 inputs as needed
 iv = base64.b64decode(iv_b64)
