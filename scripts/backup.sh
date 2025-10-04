@@ -57,7 +57,7 @@ function decrypt() {
     local RESP=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID")
     #Read both IV and AUTH_TAG from previous get-user-file-info call
 	local IV AUTH_TAG
-	read -r IV AUTHTAG <<< "$(echo "$RESP" | jq -r '.data.encryptMeta.iv + " " + .data.encryptMeta.authTag')"
+	read -r IV AUTH_TAG <<< "$(echo "$RESP" | jq -r '.data.encryptMeta.iv + " " + .data.encryptMeta.authTag')"
 
     #Set the password index to match X from ACTUAL_BUDGET_SYNC_ID_X
 	#This will fail if not user defined
