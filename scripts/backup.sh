@@ -53,7 +53,7 @@ function decrypt() {
 	#$FILE_ID and $TOKEN are still set properly so they can be used here
     local JSON=$(jq -n --arg token "$TOKEN" --arg fileId "$FILE_ID" \
   '{token: $token, fileId: $fileId}')
-    local SALT=$(curl "${ACTUAL_BUDGET_URL}/sync/user-get-key" -X POST -H "Content-Type: application/json" --data-raw "$JSON" | jq --raw-output ".data.salt")
+    local SALT=$(curl -s "${ACTUAL_BUDGET_URL}/sync/user-get-key" -X POST -H "Content-Type: application/json" --data-raw "$JSON" | jq --raw-output ".data.salt")
     local IV=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID" | jq --raw-output ".data.encryptMeta.iv")
     local AUTH_TAG=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID" | jq --raw-output ".data.encryptMeta.authTag")
 
