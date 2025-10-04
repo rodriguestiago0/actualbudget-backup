@@ -35,7 +35,7 @@ environment:
   ACTUAL_BUDGET_SYNC_ID_1: 'encrypted-random-guid-1'
   ACTUAL_BUDGET_SYNC_ID_2: 'random-guid-2' (NOT ENCRYPTED)
   ACTUAL_BUDGET_SYNC_ID_3: 'encrypted-random-guid-3'
-  ACTUAL_BUDGET_E2E_PASSWORD_: 'password'
+  ACTUAL_BUDGET_E2E_PASSWORD: 'password'
   ACTUAL_BUDGET_E2E_PASSWORD_1: 'password-1'
   ACTUAL_BUDGET_E2E_PASSWORD_2: 'anything except empty'
   ACTUAL_BUDGET_E2E_PASSWORD_3: 'password-3'
