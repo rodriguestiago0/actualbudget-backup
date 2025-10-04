@@ -9,8 +9,6 @@ from Crypto.Cipher import AES
 RED = '\033[31m'
 RESET = '\033[0m'
 
-#TODO: For environ.get calls check if they are empty before subscripting them
-#TODO: You really should just pass these as command line args from bash as it does not require an export
 
 #Setup argparse
 parser = argparse.ArgumentParser(description='Process encryption params')
