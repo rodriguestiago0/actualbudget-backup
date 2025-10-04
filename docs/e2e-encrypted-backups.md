@@ -1,7 +1,9 @@
 # End-to-end Encrypted Backups
 
 End-to-end encrypted backups are now supported. If you have specified a key in ActualBackup's End-to-end Encryption settings, they will be backed up successfully.
-**NOTE:** Similarly to ActualBackup's Export feature, if you back up an end-to-end encrypted file, it is backed up **without encryption**. This is because Actual Backup does not support importing encrypted backups - the database files must be in an unencrypted zip file for sucessful import.
+<br>
+
+**NOTE:** Similarly to ActualBackup's Export feature, if you back up an end-to-end encrypted file, it is backed up **without encryption**. This is because Actual Backup does not support importing encrypted backups - the database files must be in an unencrypted zip file for successful import.
 
 If it is necessary that these files remain encrypted, consider a per-file encryption solution, such as an rclone crypt remote.
 
