@@ -209,7 +209,7 @@ function init_actual_e2e_list(){
 
     for ACTUAL_BUDGET_E2E_PASSWORD_X in "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}"
     do
-        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: ${ACTUAL_BUDGET_E2E_PASSWORD_X}"
+        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: *****"
     done
 }
 
