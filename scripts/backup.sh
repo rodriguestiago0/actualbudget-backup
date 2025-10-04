@@ -54,8 +54,10 @@ function decrypt() {
     local JSON=$(jq -n --arg token "$TOKEN" --arg fileId "$FILE_ID" \
   '{token: $token, fileId: $fileId}')
     local SALT=$(curl -s "${ACTUAL_BUDGET_URL}/sync/user-get-key" -X POST -H "Content-Type: application/json" --data-raw "$JSON" | jq --raw-output ".data.salt")
-    local IV=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID" | jq --raw-output ".data.encryptMeta.iv")
-    local AUTH_TAG=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID" | jq --raw-output ".data.encryptMeta.authTag")
+    local RESP=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID")
+    #Read both IV and AUTH_TAG from previous get-user-file-info call
+	local IV AUTH_TAG
+	read -r IV AUTHTAG <<< "$(echo "$RESP" | jq -r '.data.encryptMeta.iv + " " + .data.encryptMeta.authTag')"
 
     #Set the password index to match X from ACTUAL_BUDGET_SYNC_ID_X
 	#This will fail if not user defined
@@ -71,7 +73,7 @@ function decrypt() {
 		"--authtag=${AUTH_TAG}" \
 		"--input=${BACKUP_FILE_ZIP}" \
 		"--output=${DECRYPT_FILE_ZIP}"; then
-        #Unusable backup is kept as .bin in case of failure as you can still manually decrypt it given the same server state. Better to have it than not.
+
 		color red "Decryption failed. Encrypted backup ${BACKUP_FILE_ZIP} is unusable. Check python error statement above for details"
 	else
 	    color blue "Decryption successful. Backing up ${BACKUP_FILE_ZIP}..."
@@ -141,9 +143,6 @@ function clear_history() {
         done
     fi
 }
-
-
-DECRYPT=0
 
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 

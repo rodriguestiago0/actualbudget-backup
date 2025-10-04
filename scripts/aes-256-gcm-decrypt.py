@@ -52,6 +52,7 @@ key = hashlib.pbkdf2_hmac('sha512', password, salt, 10000, dklen=32)
 # Read ciphertext from file
 with open(encrypted_file_path, 'rb') as f:
     ciphertext = f.read()
+    f.close()
 
 # Initialize AES-GCM cipher for decryption using key and iv
 cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
@@ -60,6 +61,6 @@ cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
 plaintext = cipher.decrypt_and_verify(ciphertext, auth_tag)
 
 # Write decrypted output to <input>_decrypted.zip
-#TODO above
 with open(decrypted_file_path, 'wb') as f:
     f.write(plaintext)
+    f.close()
