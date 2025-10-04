@@ -207,6 +207,9 @@ function init_actual_env(){
     ACTUAL_BUDGET_SYNC_ID_0="${ACTUAL_BUDGET_SYNC_ID}"
 
     init_actual_sync_list
+	
+	get_env ACTUAL_BUDGET_E2E_PASSWORD
+	ACTUAL_BUDGET_E2E_PASSWORD_0="${ACTUAL_BUDGET_E2E_PASSWORD}"
 }
 
 ########################################
