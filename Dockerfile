@@ -9,9 +9,11 @@ ARG USER_ID="1100"
 ENV LOCALTIME_FILE="/tmp/localtime"
 
 COPY scripts/*.sh /app/
+COPY scripts/*.py /app/
 
 RUN chmod +x /app/* \
-  && apk add --no-cache grep file bash supercronic curl jq \
+  && apk add --no-cache grep file bash supercronic curl jq python3 py3-pip \
+  && pip3 install --no-cache-dir --break-system-packages pycryptodome \
   && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
   && addgroup -g "${USER_ID}" "${USER_NAME}" \
   && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"

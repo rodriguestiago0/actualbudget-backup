@@ -22,18 +22,67 @@ function download_actual_budget() {
     color blue "Downloading Actual Budget backup"
     color green "Login into Actual Budget" 
     prepare_login_json
-    local TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data @/tmp/login.json  | jq --raw-output '.data.token')"
+    #We will use $TOKEN in decrypt step
+	TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data @/tmp/login.json  | jq --raw-output '.data.token')"
     rm /tmp/login.json
-    for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+    local i=0
+	for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
     do
         color green "Get file id for ${ACTUAL_BUDGET_SYNC_ID_X}"
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
 
-        local FILE_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .fileId")
+        #We will use $FILE_ID in decrypt step
+		FILE_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .fileId")
         color green "Downloading backup files"
         curl -s --location "${ACTUAL_BUDGET_URL}/sync/download-user-file" --header "X-ACTUAL-TOKEN: $TOKEN" --header "X-ACTUAL-FILE-ID: $FILE_ID" --output "${BACKUP_FILE_ZIP}"
+        ENCRYPT_KEY_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .encryptKeyId")
+        if [ "$ENCRYPT_KEY_ID" != "null" ]; then
+            color blue "File ${BACKUP_FILE_ZIP} is encrypted with Encryption ID: ${ENCRYPT_KEY_ID}. Decrypting data..."
+			BACKUP_FILE_BIN="${BACKUP_FILE_ZIP:0:-4}.bin"
+			cp "${BACKUP_FILE_ZIP}" "${BACKUP_FILE_BIN}"
+			decrypt "${i}"
+		else
+		    color blue "File ${BACKUP_FILE_ZIP} is NOT encrypted. Backing up normally..."
+        fi
+        ((i++))
     done
    
+}
+
+function decrypt() {
+	#$FILE_ID and $TOKEN are still set properly so they can be used here
+    local JSON=$(jq -n --arg token "$TOKEN" --arg fileId "$FILE_ID" \
+  '{token: $token, fileId: $fileId}')
+    local SALT=$(curl -s "${ACTUAL_BUDGET_URL}/sync/user-get-key" -X POST -H "Content-Type: application/json" --data-raw "$JSON" | jq --raw-output ".data.salt")
+    local RESP=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID")
+    #Read both IV and AUTH_TAG from previous get-user-file-info call
+	local IV AUTH_TAG
+	read -r IV AUTH_TAG <<< "$(echo "$RESP" | jq -r '.data.encryptMeta.iv + " " + .data.encryptMeta.authTag')"
+
+    #Set the password index to match X from ACTUAL_BUDGET_SYNC_ID_X
+	#This will fail if not user defined
+	local E2E_PASSWORD_X="${ACTUAL_BUDGET_E2E_PASSWORD_LIST[$1]}"
+
+    local DECRYPT_FILE_ZIP="${BACKUP_FILE_ZIP:0:-4}-decrypted.zip"
+	
+	#aes-256-gcm-decrypt.py requires SALT, IV, and AUTH_TAG retrieved above in addition to user set ACTUAL_BUDGET_E2E_PASSWORD_X
+	if ! python3 /app/aes-256-gcm-decrypt.py \
+	    "--salt=${SALT}" \
+		"--password=${E2E_PASSWORD_X}" \
+		"--iv=${IV}" \
+		"--authtag=${AUTH_TAG}" \
+		"--input=${BACKUP_FILE_ZIP}" \
+		"--output=${DECRYPT_FILE_ZIP}"; then
+
+		color red "Decryption failed. Encrypted backup ${BACKUP_FILE_ZIP} is unusable. Check python error statement above for details"
+	else
+	    color blue "Decryption successful. Backing up ${BACKUP_FILE_ZIP}..."
+		#Rename successfully decrypted backup file
+        mv "${DECRYPT_FILE_ZIP}" "${BACKUP_FILE_ZIP}"
+    fi
+	#Delete the redundant .bin file
+	rm "${BACKUP_FILE_BIN}"
+
 }
 
 function backup() {
@@ -49,9 +98,10 @@ function upload() {
     for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
     do
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
-        if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
+		if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
             color red "File not found \"${BACKUP_FILE_ZIP}\""
-
+			color red "This may be a file which failed to properly decrypt and will not be backed up"
+			color red "Nothing has been backed up!"
             exit 1
         fi
     done
@@ -93,8 +143,6 @@ function clear_history() {
         done
     fi
 }
-
-
 
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 
