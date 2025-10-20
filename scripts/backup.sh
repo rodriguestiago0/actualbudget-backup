@@ -18,72 +18,100 @@ function prepare_login_json() {
                   ({}; . + {($a[2*$i]): ($a[2*$i + 1])})' > /tmp/login.json
 }
 
+# ==========================================================
+# 🧩 NEW download_actual_budget() using @actual-app/api
+# ==========================================================
 function download_actual_budget() {
-    color blue "Downloading Actual Budget backup"
-    color green "Login into Actual Budget" 
-    prepare_login_json
-    #We will use $TOKEN in decrypt step
-	TOKEN="$(curl -s --location "${ACTUAL_BUDGET_URL}/account/login" --header 'Content-Type: application/json' --data @/tmp/login.json  | jq --raw-output '.data.token')"
-    rm /tmp/login.json
-    local i=0
-	for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
-    do
-        color green "Get file id for ${ACTUAL_BUDGET_SYNC_ID_X}"
-        backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
+    color blue "Downloading Actual Budget backup using @actual-app/api"
 
-        #We will use $FILE_ID in decrypt step
-		FILE_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .fileId")
-        color green "Downloading backup files"
-        curl -s --location "${ACTUAL_BUDGET_URL}/sync/download-user-file" --header "X-ACTUAL-TOKEN: $TOKEN" --header "X-ACTUAL-FILE-ID: $FILE_ID" --output "${BACKUP_FILE_ZIP}"
-        ENCRYPT_KEY_ID=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/list-user-files" \--header "X-ACTUAL-TOKEN: $TOKEN" | jq --raw-output ".data[] | select( [ .groupId | match(\"$ACTUAL_BUDGET_SYNC_ID_X\") ] | any) | .encryptKeyId")
-        if [ "$ENCRYPT_KEY_ID" != "null" ]; then
-            color blue "File ${BACKUP_FILE_ZIP} is encrypted with Encryption ID: ${ENCRYPT_KEY_ID}. Decrypting data..."
-			BACKUP_FILE_BIN="${BACKUP_FILE_ZIP:0:-4}.bin"
-			cp "${BACKUP_FILE_ZIP}" "${BACKUP_FILE_BIN}"
-			decrypt "${i}"
-		else
-		    color blue "File ${BACKUP_FILE_ZIP} is NOT encrypted. Backing up normally..."
-        fi
-        ((i++))
-    done
-   
-}
+    # Parameters:
+    API_VERSION=${ACTUAL_API_VERSION:-latest}
+    API_DOWNLOAD_PATH=${ACTUAL_API_DOWNLOAD_PATH:-/tmp/actual-download}
 
-function decrypt() {
-	#$FILE_ID and $TOKEN are still set properly so they can be used here
-    local JSON=$(jq -n --arg token "$TOKEN" --arg fileId "$FILE_ID" \
-  '{token: $token, fileId: $fileId}')
-    local SALT=$(curl -s "${ACTUAL_BUDGET_URL}/sync/user-get-key" -X POST -H "Content-Type: application/json" --data-raw "$JSON" | jq --raw-output ".data.salt")
-    local RESP=$(curl -s --location "${ACTUAL_BUDGET_URL}/sync/get-user-file-info" \--header "X-ACTUAL-TOKEN: $TOKEN" \--header "X-ACTUAL-FILE-ID: $FILE_ID")
-    #Read both IV and AUTH_TAG from previous get-user-file-info call
-	local IV AUTH_TAG
-	read -r IV AUTH_TAG <<< "$(echo "$RESP" | jq -r '.data.encryptMeta.iv + " " + .data.encryptMeta.authTag')"
+    # Clean and prepare folders
+    mkdir -p "${API_DOWNLOAD_PATH}"
+    mkdir -p "backup"
 
-    #Set the password index to match X from ACTUAL_BUDGET_SYNC_ID_X
-	#This will fail if not user defined
-	local E2E_PASSWORD_X="${ACTUAL_BUDGET_E2E_PASSWORD_LIST[$1]}"
-
-    local DECRYPT_FILE_ZIP="${BACKUP_FILE_ZIP:0:-4}-decrypted.zip"
-	
-	#aes-256-gcm-decrypt.py requires SALT, IV, and AUTH_TAG retrieved above in addition to user set ACTUAL_BUDGET_E2E_PASSWORD_X
-	if ! python3 /app/aes-256-gcm-decrypt.py \
-	    "--salt=${SALT}" \
-		"--password=${E2E_PASSWORD_X}" \
-		"--iv=${IV}" \
-		"--authtag=${AUTH_TAG}" \
-		"--input=${BACKUP_FILE_ZIP}" \
-		"--output=${DECRYPT_FILE_ZIP}"; then
-
-		color red "Decryption failed. Encrypted backup ${BACKUP_FILE_ZIP} is unusable. Check python error statement above for details"
-	else
-	    color blue "Decryption successful. Backing up ${BACKUP_FILE_ZIP}..."
-		#Rename successfully decrypted backup file
-        mv "${DECRYPT_FILE_ZIP}" "${BACKUP_FILE_ZIP}"
+    color green "Installing @actual-app/api@$API_VERSION (if needed)..."
+    if ! [ -d "/app/node_modules/@actual-app/api" ]; then
+        echo "Installing @actual-app/api@$API_VERSION..."
+        npm install --prefix /app "@actual-app/api@$API_VERSION" --unsafe-perm
+    else
+        color green "@actual-app/api@$API_VERSION already installed."
     fi
-	#Delete the redundant .bin file
-	rm "${BACKUP_FILE_BIN}"
 
+    # Prepare Node script
+    NODE_SCRIPT=$(mktemp)
+
+cat > "$NODE_SCRIPT" <<'EOF'
+const api = require('@actual-app/api');
+const path = require('path');
+const { execSync } = require('child_process');
+const argv = require('minimist')(process.argv.slice(2));
+
+// Parse arguments using minimist
+const dataDir = argv.dataDir || '/tmp/actual-download';
+const destDir = argv.destDir || '/data/backup';
+const serverURL = argv.serverURL || 'http://localhost:5006';
+const password = argv.password || 'password';
+const syncIdList = (argv.syncIds || '').split(',');
+const e2ePasswords = (argv.e2ePasswords || '').split(',');
+const now = argv.now || 'now';
+
+console.log("📥 Starting download from", serverURL);
+console.log("🗂 Sync IDs:", syncIdList);
+
+(async () => {
+    for (let i = 0; i < syncIdList.length; i++) {
+        const syncId = syncIdList[i];
+        if (!syncId) continue;
+
+        const e2ePassword = e2ePasswords[i] || null;
+        const zipPath = path.join(destDir, `backup.${syncId}.${now}.zip`);
+
+        console.log(`⬇️  Downloading budget ${syncId} -> ${zipPath}`);
+
+        await api.init({ dataDir, serverURL, password });
+
+        try {
+            await api.downloadBudget(syncId, e2ePassword ? { password: e2ePassword } : {});
+            console.log(`✅ Budget ${syncId} downloaded successfully.`);
+            await api.getAccounts();
+            await api.shutdown();
+
+            // Zip the downloaded data
+            execSync(`cd ${dataDir} && zip -r ${zipPath} .`, { stdio: 'inherit' });
+            console.log(`📦 Created zip: ${zipPath}`);
+        } catch (err) {
+            console.error(`❌ Failed to download ${syncId}:`, err);
+        } finally {
+            await api.shutdown();
+        }
+    }
+
+    console.log("🎉 All downloads completed!");
+})();
+EOF
+
+    # Convert arrays to comma-separated strings
+    SYNC_IDS="$(IFS=, ; echo "${ACTUAL_BUDGET_SYNC_ID_LIST[*]}")"
+    E2E_PASSWORDS="$(IFS=, ; echo "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[*]}")"
+
+    export NODE_PATH=/app/node_modules
+
+    # Run Node with arguments instead of relying on environment variable export
+    node "$NODE_SCRIPT" \
+        --syncIds="$SYNC_IDS" \
+        --e2ePasswords="$E2E_PASSWORDS" \
+        --dataDir="$API_DOWNLOAD_PATH" \
+        --destDir="$(pwd)/backup" \
+        --serverURL="$ACTUAL_BUDGET_URL" \
+        --password="$ACTUAL_BUDGET_PASSWORD" \
+        --now="$NOW"
+    rm -f "$NODE_SCRIPT"
 }
+
+# ==========================================================
 
 function backup() {
     mkdir -p "backup"
@@ -100,7 +128,6 @@ function upload() {
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
 		if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
             color red "File not found \"${BACKUP_FILE_ZIP}\""
-			color red "This may be a file which failed to properly decrypt and will not be backed up"
 			color red "Nothing has been backed up!"
             exit 1
         fi

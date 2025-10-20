@@ -1,5 +1,7 @@
 FROM rclone/rclone:1.66.0
 
+RUN apk add --no-cache zip nodejs npm bash curl wget tar xz
+
 LABEL "repository"="https://github.com/rodriguestiago0/actual-backup" \
   "homepage"="https://github.com/rodriguestiago0/actual-backup"
 
