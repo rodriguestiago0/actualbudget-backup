@@ -10,6 +10,7 @@ ARG USER_ID="1100"
 
 ENV LOCALTIME_FILE="/tmp/localtime"
 
+COPY scripts/*.js /app/
 COPY scripts/*.sh /app/
 COPY scripts/*.py /app/
 
