@@ -35,6 +35,7 @@ console.log("🗂 Sync IDs:", syncIdList);
 
             // Zip the downloaded data
             execSync(`cd ${dataDir} && zip -r ${zipPath} .`, { stdio: 'inherit' });
+            execSync(`rm -rf ${dataDir}/*`, { stdio: 'inherit' });
             console.log(`📦 Created zip: ${zipPath}`);
         } catch (err) {
             console.error(`❌ Failed to download ${syncId}:`, err);
