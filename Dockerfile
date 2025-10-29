@@ -1,7 +1,5 @@
 FROM rclone/rclone:1.66.0
 
-RUN apk add --no-cache zip nodejs npm bash curl wget tar xz
-
 LABEL "repository"="https://github.com/rodriguestiago0/actual-backup" \
   "homepage"="https://github.com/rodriguestiago0/actual-backup"
 
@@ -12,11 +10,9 @@ ENV LOCALTIME_FILE="/tmp/localtime"
 
 COPY scripts/*.js /app/
 COPY scripts/*.sh /app/
-COPY scripts/*.py /app/
 
 RUN chmod +x /app/* \
-  && apk add --no-cache grep file bash supercronic curl jq python3 py3-pip \
-  && pip3 install --no-cache-dir --break-system-packages pycryptodome \
+  && apk add --no-cache grep file bash supercronic curl jq zip nodejs npm wget tar xz \
   && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
   && addgroup -g "${USER_ID}" "${USER_NAME}" \
   && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"
