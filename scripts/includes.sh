@@ -29,28 +29,52 @@ function color() {
 ########################################
 function check_rclone_connection() {
     # check configuration exist
-    rclone ${RCLONE_GLOBAL_FLAG} config show "${RCLONE_REMOTE_NAME}" > /dev/null 2>&1
+    local RCLONE_CONFIG_FILE=$(rclone config file 2>&1 | grep -o '/[^[:space:]]*rclone\.conf')
+    grep -c "\[${RCLONE_REMOTE_NAME}\]" "${RCLONE_CONFIG_FILE}" > /dev/null 2>&1
     if [[ $? != 0 ]]; then
         color red "rclone configuration information not found"
         color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup#configure-rclone-%EF%B8%8F-must-read-%EF%B8%8F"
         exit 1
     fi
 
+    # check flags validity
+    rclone ${RCLONE_GLOBAL_FLAG} version > /dev/null 2>&1
+    if [[ $? != 0 ]]; then
+        color red "illegal rclone global flags"
+        color blue "Please check https://rclone.org/flags/"
+        exit 1
+    fi
+
     # check connection
-    local HAS_ERROR="FALSE"
+    local ERROR_COUNT=0
 
     for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
     do
-        rclone ${RCLONE_GLOBAL_FLAG} mkdir "${RCLONE_REMOTE_X}"
+        rclone ${RCLONE_GLOBAL_FLAG} lsd "${RCLONE_REMOTE_X}" > /dev/null
         if [[ $? != 0 ]]; then
-            color red "storage system connection failure $(color yellow "[${RCLONE_REMOTE_X}]")"
+            color red "storage system connection may not be initialized, try initializing $(color yellow "[${RCLONE_REMOTE_X}]")"
 
-            HAS_ERROR="TRUE"
+            rclone ${RCLONE_GLOBAL_FLAG} mkdir "${RCLONE_REMOTE_X}"
+            if [[ $? != 0 ]]; then
+                color red "storage system connection failure $(color yellow "[${RCLONE_REMOTE_X}]")"
+
+                ((ERROR_COUNT++))
+            fi
         fi
     done
 
-    if [[ "${HAS_ERROR}" == "TRUE" ]]; then
-        exit 1
+    if [[ "${ERROR_COUNT}" -gt 0 ]]; then
+        if [[ "$1" == "all" ]]; then
+            color red "storage system connection failure exists"
+            exit 1
+        elif [[ "$1" == "any" ]]; then
+            if [[ "${ERROR_COUNT}" -eq "${#RCLONE_REMOTE_LIST[@]}" ]]; then
+                color red "all storage system connections failed"
+                exit 1
+            else
+                color yellow "some storage system connections failed, but the backup will continue"
+            fi
+        fi
     fi
 }
 

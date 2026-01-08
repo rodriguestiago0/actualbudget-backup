@@ -22,7 +22,7 @@ function configure_cron() {
 }
 
 init_env
-check_rclone_connection
+check_rclone_connection all
 configure_timezone
 configure_cron
 
@@ -36,4 +36,4 @@ if [[ "$1" == "backup" ]]; then
 fi
 
 # foreground run crond
-exec supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}"
+exec /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}"
