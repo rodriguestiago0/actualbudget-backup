@@ -72,7 +72,7 @@ function upload() {
     for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
     do
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
-		if !(file "${BACKUP_FILE_ZIP}" | grep -q "Zip archive data" ) ; then
+		if !(file "${BACKUP_FILE_ZIP}" | grep -q "data" ) ; then
             color red "File not found \"${BACKUP_FILE_ZIP}\""
 			color red "Nothing has been backed up!"
             exit 1
