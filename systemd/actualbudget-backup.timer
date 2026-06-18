@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ActualBudget Backup daily at 00:00
+
+[Timer]
+# Runs at midnight every day
+OnCalendar=*-*-* 00:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
