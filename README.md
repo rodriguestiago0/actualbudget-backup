@@ -99,6 +99,10 @@ Password for the actual budget server. If you're setting this through the docker
 
 Actual Sync ID. You can find this by logging into your Actual server in a web browser, go to `settings > show advanced settings` and the sync ID should be in the top block there.
 
+### ACTUAL_API_VERSION
+
+Optional version of the `@actual-app/api` package used by the backup process. This can be used to pin a specific version, for example `ACTUAL_API_VERSION: 'latest'` or `ACTUAL_API_VERSION: '25.8.0'`. If omitted, the container defaults to `latest`.
+
 ### RCLONE_REMOTE_NAME
 
 The name of the Rclone remote, which needs to be consistent with the remote name in the rclone config.

@@ -46,6 +46,8 @@ Next you need to tell the container how it's going to talk to your Actual server
 
 `ACTUAL_BUDGET_SYNC_ID_1` If you have multiple budgets to backup, you can add more sync IDs by using the `ACTUAL_BUDGET_SYNC_ID_1: ''` field to hold the second ID, and you can add as many of those as you want by incrementing the number `ACTUAL_BUDGET_SYNC_ID_2`, `ACTUAL_BUDGET_SYNC_ID_3`… etc.
 
+`ACTUAL_API_VERSION` - Optional. Pin the version of the `@actual-app/api` package used by the backup script. For example, `ACTUAL_API_VERSION: 'latest'` or `ACTUAL_API_VERSION: '25.8.0'`. If you do not set this, the container uses `latest` by default.
+
 ## Testing
 
 Now all the config is set, you should run a test backup to confirm all the config is correct. To do that, run the following command from the folder where you have the docker compose file:
