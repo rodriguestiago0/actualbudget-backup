@@ -1,0 +1,14 @@
+[Unit]
+Description=ActualBudget Backup Service
+Requires=docker.service
+After=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/backup-actualbudget
+# This will spin up a temporary container, run the backup script once, and exit/remove itself
+ExecStart=/usr/bin/docker compose run --rm backup backup
+
+[Install]
+WantedBy=multi-user.target

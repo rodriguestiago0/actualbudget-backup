@@ -83,6 +83,29 @@ docker run -d \
   rodriguestiago0/actualbudget-backup:latest
 ```
 
+#### Automatic Backups with systemd
+
+Instead of relying on the container's built-in cron schedule, you can use systemd timers to trigger your backups. This repository includes a systemd service (`systemd/actualbudget-backup.service`) and a timer (`systemd/actualbudget-backup.timer`) that you can use.
+
+**Installation Manual:**
+
+1. Edit the `WorkingDirectory` in `systemd/actualbudget-backup.service` to point to the directory containing your `docker-compose.yml`.
+2. Copy both files to the systemd directory:
+   ```shell
+   sudo cp systemd/actualbudget-backup.service /etc/systemd/system/
+   sudo cp systemd/actualbudget-backup.timer /etc/systemd/system/
+   ```
+3. Reload the systemd manager configuration:
+   ```shell
+   sudo systemctl daemon-reload
+   ```
+4. Enable and start the timer so it runs automatically:
+   ```shell
+   sudo systemctl enable --now actualbudget-backup.timer
+   ```
+
+By default, the provided timer is configured to run daily at `00:00`. You can customize this schedule by editing the `OnCalendar` rule in the `actualbudget-backup.timer` file.
+
 ## Environment Variables
 
 > **Note:** The container will run with no environment variables specified without error, however if you haven't set at least `ACTUAL_BUDGET_URL`, `ACTUAL_BUDGET_PASSWORD`, and `ACTUAL_BUDGET_SYNC_ID`, no backup will successfully happen.
