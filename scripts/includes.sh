@@ -301,6 +301,26 @@ function init_env() {
     get_env BACKUP_KEEP_DAYS
     BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-"0"}"
 
+    # ZIP_ENABLE
+    get_env ZIP_ENABLE
+    if [[ "${ZIP_ENABLE^^}" == "FALSE" ]]; then
+        ZIP_ENABLE="FALSE"
+    else
+        ZIP_ENABLE="TRUE"
+    fi
+
+    # ZIP_PASSWORD
+    get_env ZIP_PASSWORD
+    ZIP_PASSWORD="${ZIP_PASSWORD:-""}"
+
+    # ZIP_TYPE
+    get_env ZIP_TYPE
+    if [[ "${ZIP_TYPE,,}" == "7z" ]]; then
+        ZIP_TYPE="7z"
+    else
+        ZIP_TYPE="zip"
+    fi
+
     # BACKUP_FILE_DATE_FORMAT
     get_env BACKUP_FILE_SUFFIX
     get_env BACKUP_FILE_DATE
@@ -326,6 +346,9 @@ function init_env() {
     done
 
     color yellow "RCLONE_GLOBAL_FLAG: ${RCLONE_GLOBAL_FLAG}"
+    color yellow "ZIP_ENABLE: ${ZIP_ENABLE}"
+    color yellow "ZIP_PASSWORD: ${#ZIP_PASSWORD} Chars"
+    color yellow "ZIP_TYPE: ${ZIP_TYPE}"
     color yellow "BACKUP_FILE_DATE_FORMAT: ${BACKUP_FILE_DATE_FORMAT} (example \"[filename].$(date +"${BACKUP_FILE_DATE_FORMAT}").zip\")"
     color yellow "BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS}"
 

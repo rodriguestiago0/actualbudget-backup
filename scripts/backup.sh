@@ -7,8 +7,8 @@ function clear_dir() {
 }
 
 function backup_file_name () {
-    # backup zip file
-    BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.zip"
+    # backup archive file
+    BACKUP_FILE_ZIP="backup/backup.$1.${NOW}.${ZIP_TYPE}"
     color blue "file name \"${BACKUP_FILE_ZIP}\""
 }
 
@@ -54,7 +54,10 @@ function download_actual_budget() {
         --destDir="$(pwd)/backup" \
         --serverURL="$ACTUAL_BUDGET_URL" \
         --password="$ACTUAL_BUDGET_PASSWORD" \
-        --now="$NOW"
+        --now="$NOW" \
+        --zipEnable="$ZIP_ENABLE" \
+        --zipType="$ZIP_TYPE" \
+        --zipPassword="$ZIP_PASSWORD"
 }
 
 # ==========================================================
@@ -72,9 +75,9 @@ function upload() {
     for ACTUAL_BUDGET_SYNC_ID_X in "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
     do
         backup_file_name $ACTUAL_BUDGET_SYNC_ID_X
-		if !(file "${BACKUP_FILE_ZIP}" | grep -q "data" ) ; then
-            color red "File not found \"${BACKUP_FILE_ZIP}\""
-			color red "Nothing has been backed up!"
+        if [[ ! -s "${BACKUP_FILE_ZIP}" ]]; then
+            color red "File not found or empty \"${BACKUP_FILE_ZIP}\""
+            color red "Nothing has been backed up!"
             exit 1
         fi
     done
@@ -123,7 +126,7 @@ init_env
 
 NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
 
-check_rclone_connection
+check_rclone_connection any
 
 clear_dir
 backup

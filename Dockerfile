@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-FROM rclone/rclone:sha-73bcae2
-# FROM rclone/rclone:1.72.1
+FROM rclone/rclone:sha-9ee9d0a
+# FROM rclone/rclone:1.75.0
 
 LABEL "repository"="https://github.com/rodriguestiago0/actual-backup" \
   "homepage"="https://github.com/rodriguestiago0/actual-backup"
@@ -15,7 +15,7 @@ COPY scripts/*.js /app/
 COPY scripts/*.sh /app/
 
 RUN chmod +x /app/* \
-  && apk add --no-cache grep file bash supercronic curl jq zip nodejs npm wget tar xz \
+  && apk add --no-cache grep file bash supercronic curl jq zip 7zip nodejs npm wget tar xz tzdata \
   && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
   && addgroup -g "${USER_ID}" "${USER_NAME}" \
   && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"

@@ -26,7 +26,7 @@ The only thing to note that we're doing differently is that Rclone is running in
 
 ### Connection to Actual
 
-Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
+Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`compose.yaml`](/compose.yaml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
 
 #### Mandatory fields
 
@@ -45,8 +45,6 @@ Next you need to tell the container how it's going to talk to your Actual server
 `BACKUP_KEEP_DAYS` - by default, this tool never deletes old backups. To change this behaviour, set this to the number of days to keep backups for. e.g. for a weeks worth of backups, set `BACKUP_KEEP_DAYS: 7`
 
 `ACTUAL_BUDGET_SYNC_ID_1` If you have multiple budgets to backup, you can add more sync IDs by using the `ACTUAL_BUDGET_SYNC_ID_1: ''` field to hold the second ID, and you can add as many of those as you want by incrementing the number `ACTUAL_BUDGET_SYNC_ID_2`, `ACTUAL_BUDGET_SYNC_ID_3`… etc.
-
-`ACTUAL_API_VERSION` - Optional. Pin the version of the `@actual-app/api` package used by the backup script. For example, `ACTUAL_API_VERSION: 'latest'` or `ACTUAL_API_VERSION: '25.8.0'`. If you do not set this, the container uses `latest` by default.
 
 ## Testing
 
