@@ -26,7 +26,7 @@ The only thing to note that we're doing differently is that Rclone is running in
 
 ### Connection to Actual
 
-Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`docker-compose.yml`](/docker-compose.yml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
+Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`compose.yaml`](/compose.yaml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
 
 #### Mandatory fields
 

@@ -53,22 +53,22 @@ docker run --rm -it \
 
 #### Use Docker Compose (Recommend)
 
-Download `docker-compose.yml` to you machine, edit the [environment variables](#environment-variables) and start it.
+Download `compose.yaml` to you machine, edit the [environment variables](#environment-variables) and start it.
 
-You need to go to the directory where the `docker-compose.yml` file is saved.
+You need to go to the directory where the `compose.yaml` file is saved.
 
 ```shell
 # Start
-docker-compose up -d
+docker compose up -d
 
 # Stop
-docker-compose stop
+docker compose stop
 
 # Restart
-docker-compose restart
+docker compose restart
 
 # Remove
-docker-compose down
+docker compose down
 ```
 
 #### Automatic Backups without docker compose
@@ -89,7 +89,7 @@ Instead of relying on the container's built-in cron schedule, you can use system
 
 **Installation Manual:**
 
-1. Edit the `WorkingDirectory` in `systemd/actualbudget-backup.service` to point to the directory containing your `docker-compose.yml`.
+1. Edit the `WorkingDirectory` in `systemd/actualbudget-backup.service` to point to the directory containing your `compose.yaml`.
 2. Copy both files to the systemd directory:
    ```shell
    sudo cp systemd/actualbudget-backup.service /etc/systemd/system/
@@ -116,7 +116,7 @@ URL for the actual budget server, without a trailing `/`
 
 ### ACTUAL_BUDGET_PASSWORD
 
-Password for the actual budget server. If you're setting this through the docker-compose file, Single quotes must be escaped with by doubling them up. e.g. if your password is `SuperGo'oodPassw\ord"1` you would enter `ACTUAL_BUDGET_PASSWORD: 'SuperGo''oodPassw\ord"1'`. If you're using the env file method, you will need to work out your own way to encode your password without breaking the env file.
+Password for the actual budget server. If you're setting this through the compose file, Single quotes must be escaped with by doubling them up. e.g. if your password is `SuperGo'oodPassw\ord"1` you would enter `ACTUAL_BUDGET_PASSWORD: 'SuperGo''oodPassw\ord"1'`. If you're using the env file method, you will need to work out your own way to encode your password without breaking the env file.
 
 ### ACTUAL_BUDGET_SYNC_ID
 
@@ -157,6 +157,24 @@ Rclone global flags, see [flags](https://rclone.org/flags/).
 **Do not add flags that will change the output, such as `-P`, which will affect the deletion of outdated backup files.**
 
 Default: `''`
+
+### ZIP_ENABLE
+
+Pack all backup files into a compressed archive. When set to `'FALSE'`, each backup file will be a uncompressed tar archive.
+
+Default: `TRUE`
+
+### ZIP_PASSWORD
+
+The password for the compressed archive. When set, the archive will be encrypted with this password. Leave empty for no password.
+
+Default: `''` (no password)
+
+### ZIP_TYPE
+
+The archive format. Supports `zip` and `7z`. The `7z` format provides better compression and encryption (header encryption with `-mhe=on`).
+
+Default: `zip`
 
 ### CRON
 
@@ -222,7 +240,7 @@ Default: `''`
 
 ## Using `.env` file
 
-If you prefer using an env file instead of environment variables, you can map the env file containing the environment variables to the `/.env` file in the container.
+If you prefer using an env file instead of environment variables, you can map the env file containing the environment variables to the `/.env` file in the container. A template with all supported variables (commented out) is provided as [`.env.example`](/.env.example) — copy it to `.env` and fill in your values.
 
 ```shell
 docker run -d \
