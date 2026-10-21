@@ -279,6 +279,7 @@ We will use the environment variables first, followed by the contents of the fil
 - [Manually trigger a backup](docs/manually-trigger-a-backup.md)
 - [Encrypted files](docs/e2e-encrypted-backups.md)
 - [Ping notifications](docs/ping-notifications.md)
+- [Telegram notifications](docs/telegram-notifications.md)
 
 ## License
 

@@ -152,6 +152,54 @@ function send_ping() {
 }
 
 ########################################
+# Send a Telegram message through the Bot API. Failures are only logged,
+# they never fail the backup.
+# Arguments:
+#     event (start / success / failure)
+#     subject
+#     content
+########################################
+function send_telegram() {
+    if [[ -z "${TELEGRAM_BOT_TOKEN}" || -z "${TELEGRAM_CHAT_ID}" ]]; then
+        return
+    fi
+
+    if [[ ",${TELEGRAM_NOTIFY_ON}," != *",$1,"* ]]; then
+        return
+    fi
+
+    local ICON
+    case "$1" in
+        start)   ICON="▶️" ;;
+        success) ICON="✅" ;;
+        failure) ICON="❌" ;;
+    esac
+
+    local DATA=(
+        --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}"
+        --data-urlencode "text=${ICON} $2"$'\n'"$3"
+    )
+    if [[ -n "${TELEGRAM_THREAD_ID}" ]]; then
+        DATA+=(--data-urlencode "message_thread_id=${TELEGRAM_THREAD_ID}")
+    fi
+
+    local RESPONSE
+    RESPONSE="$(curl -m 15 --retry 3 --retry-delay 1 -sS "${DATA[@]}" \
+        "${TELEGRAM_API_URL}/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 2>&1)"
+
+    local OK_PATTERN='"ok"[[:space:]]*:[[:space:]]*true'
+    if [[ "${RESPONSE}" =~ ${OK_PATTERN} ]]; then
+        color blue "telegram $1 notification has been sent successfully"
+    else
+        # never print the token, even if an error message contains it
+        RESPONSE="${RESPONSE//"${TELEGRAM_BOT_TOKEN}"/***}"
+        local DESCRIPTION
+        DESCRIPTION="$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' <<< "${RESPONSE}")"
+        color red "telegram $1 notification sending has failed: ${DESCRIPTION:-${RESPONSE}}"
+    fi
+}
+
+########################################
 # Send the pings configured for a backup event.
 # Arguments:
 #     event (start / success / failure)
@@ -161,14 +209,17 @@ function send_notification() {
     case "$1" in
         start)
             send_ping start "Actual Budget Backup Start" "$2"
+            send_telegram start "Actual Budget Backup Start" "$2"
             ;;
         success)
             send_ping success "Actual Budget Backup Success" "$2"
             send_ping completion "Actual Budget Backup Success" "$2"
+            send_telegram success "Actual Budget Backup Success" "$2"
             ;;
         failure)
             send_ping failure "Actual Budget Backup Failed" "$2"
             send_ping completion "Actual Budget Backup Failed" "$2"
+            send_telegram failure "Actual Budget Backup Failed" "$2"
             ;;
     esac
 }
@@ -184,6 +235,26 @@ function init_env_ping() {
 
     get_env PING_DEBUG
     PING_DEBUG="${PING_DEBUG^^}"
+
+    # TELEGRAM
+    get_env TELEGRAM_BOT_TOKEN
+    get_env TELEGRAM_CHAT_ID
+    get_env TELEGRAM_THREAD_ID
+    get_env TELEGRAM_NOTIFY_ON
+    TELEGRAM_NOTIFY_ON="$(echo "${TELEGRAM_NOTIFY_ON:-"success,failure"}" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
+    get_env TELEGRAM_API_URL
+    TELEGRAM_API_URL="${TELEGRAM_API_URL:-"https://api.telegram.org"}"
+    TELEGRAM_API_URL="${TELEGRAM_API_URL%/}"
+
+    local EVENT
+    local EVENTS
+    IFS=, read -ra EVENTS <<< "${TELEGRAM_NOTIFY_ON}"
+    for EVENT in "${EVENTS[@]}"
+    do
+        if [[ ! "${EVENT}" =~ ^(start|success|failure)$ ]]; then
+            color yellow "TELEGRAM_NOTIFY_ON: ignoring unknown event \"${EVENT}\", supported: start, success, failure"
+        fi
+    done
 }
 
 ########################################
@@ -453,5 +524,11 @@ function init_env() {
             color yellow "${PING_VAR}: set"
         fi
     done
+
+    if [[ -n "${TELEGRAM_BOT_TOKEN}" && -n "${TELEGRAM_CHAT_ID}" ]]; then
+        color yellow "TELEGRAM: chat ${TELEGRAM_CHAT_ID}${TELEGRAM_THREAD_ID:+ (thread ${TELEGRAM_THREAD_ID})}, on ${TELEGRAM_NOTIFY_ON}"
+    elif [[ -n "${TELEGRAM_BOT_TOKEN}" || -n "${TELEGRAM_CHAT_ID}" ]]; then
+        color red "TELEGRAM: both TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required, telegram notifications are disabled"
+    fi
     color yellow "========================================"
 }
