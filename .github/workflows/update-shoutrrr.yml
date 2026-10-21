@@ -1,0 +1,97 @@
+name: Update Shoutrrr
+
+# Dependabot cannot see the Shoutrrr version pinned in the Dockerfile, so
+# check for new releases weekly. Actions may not open pull requests in
+# this repository, so push a branch and open an issue linking to it; a
+# pull request opened from that link runs CI as usual.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check for a new release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT=$(sed -n 's/^ARG SHOUTRRR_VERSION="\(.*\)"$/\1/p' Dockerfile)
+          LATEST=$(gh release view -R nicholas-fedor/shoutrrr --json tagName -q .tagName)
+          LATEST="${LATEST#v}"
+          echo "Current: $CURRENT, latest: $LATEST"
+
+          if [ -z "$CURRENT" ] || [ -z "$LATEST" ]; then
+            echo "::error::Could not read the Shoutrrr versions"
+            exit 1
+          fi
+
+          if [ "$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -1)" = "$CURRENT" ]; then
+            echo "Up to date"
+            exit 0
+          fi
+
+          BRANCH="update-shoutrrr-${LATEST}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            echo "Branch $BRANCH already exists"
+            exit 0
+          fi
+
+          {
+            echo "current=$CURRENT"
+            echo "version=$LATEST"
+            echo "branch=$BRANCH"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update the Dockerfile
+        if: steps.check.outputs.version != ''
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: sed -i "s/^ARG SHOUTRRR_VERSION=\".*\"$/ARG SHOUTRRR_VERSION=\"${VERSION}\"/" Dockerfile
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.version != ''
+        uses: docker/setup-buildx-action@v4
+
+      # Downloads the binary for every published platform and checks it
+      # against the release checksums.
+      - name: Verify the release binaries
+        if: steps.check.outputs.version != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: shoutrrr
+          push: false
+          platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
+
+      - name: Push a branch and open an issue
+        if: steps.check.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.check.outputs.current }}
+          VERSION: ${{ steps.check.outputs.version }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -am "Update Shoutrrr to v${VERSION}"
+          git push origin "$BRANCH"
+
+          gh issue create \
+            --title "Update Shoutrrr to v${VERSION}" \
+            --body "Shoutrrr [v${VERSION}](https://github.com/nicholas-fedor/shoutrrr/releases/tag/v${VERSION}) is out (currently v${CURRENT}).
+
+          The branch \`${BRANCH}\` bumps \`SHOUTRRR_VERSION\` in the Dockerfile. Its binaries for all published platforms were downloaded and match the release checksums.
+
+          **[Open a pull request](https://github.com/${REPO}/compare/main...${BRANCH}?expand=1)** to run CI and merge it."
