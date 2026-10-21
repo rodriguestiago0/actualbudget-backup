@@ -65,9 +65,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Releases everything merged since the last tag, not only this commit:
+  # when a newer push cancels this run's build, the newer run releases it.
+  # Commits marked [skip release], or touching only docs, are not
+  # released on their own.
   release:
     needs: [test, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip release]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
       group: release
@@ -85,43 +89,82 @@ jobs:
 
       - name: Auto-bump version tag
         id: bump
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
+          if [ -n "$(git tag --contains HEAD)" ]; then
+            echo "Already released by a newer run: $(git tag --contains HEAD | head -1)"
+            exit 0
+          fi
+
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "Latest tag: $LATEST_TAG"
+
+          RANGE="${LATEST_TAG}..HEAD"
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            RANGE="HEAD"
+          fi
+
+          RELEASE=false
+          BUMP="patch"
+          for COMMIT in $(git rev-list --first-parent "$RANGE"); do
+            MSG=$(git log -1 --format=%B "$COMMIT")
+            SUBJECT=$(git log -1 --format=%s "$COMMIT")
+            if echo "$MSG" | grep -q '\[skip release\]'; then
+              echo "Skipped ([skip release]): $SUBJECT"
+              continue
+            fi
+            if ! git diff --name-only "${COMMIT}^1" "$COMMIT" | grep -qvE '(\.md$|^docs/|^LICENSE$)'; then
+              echo "Skipped (docs only): $SUBJECT"
+              continue
+            fi
+            echo "Included: $SUBJECT"
+            RELEASE=true
+            if echo "$MSG" | grep -q '\[major\]'; then
+              BUMP="major"
+            elif echo "$MSG" | grep -q '\[minor\]' && [ "$BUMP" != major ]; then
+              BUMP="minor"
+            fi
+          done
+
+          if [ "$RELEASE" != true ]; then
+            echo "Nothing to release"
+            exit 0
+          fi
 
           VERSION=${LATEST_TAG#v}
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
 
-          echo "Commit message: $COMMIT_MSG"
-
-          if echo "$COMMIT_MSG" | grep -q '\[major\]'; then
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-            echo "Bumping major version"
-          elif echo "$COMMIT_MSG" | grep -q '\[minor\]'; then
-            MINOR=$((MINOR + 1))
-            PATCH=0
-            echo "Bumping minor version"
-          else
-            PATCH=$((PATCH + 1))
-            echo "Bumping patch version"
-          fi
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          echo "Bumping $BUMP version"
 
           NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
           echo "New tag: $NEW_TAG"
-          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
-          git push origin "$NEW_TAG"
+
+          # GITHUB_TOKEN cannot tag a commit whose workflow files differ from
+          # main's, which happens when a newer push changed them. That push's
+          # run releases this commit too.
+          if ! git push origin "$NEW_TAG"; then
+            git fetch -q origin main
+            if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)" ]; then
+              echo "::notice::Tag push rejected; main has moved on, its run will release these changes."
+              exit 0
+            fi
+            exit 1
+          fi
+
+          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
+        if: steps.bump.outputs.new_tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.bump.outputs.new_tag }}
@@ -135,6 +178,7 @@ jobs:
   # Call the publish workflow directly instead.
   publish:
     needs: release
+    if: needs.release.outputs.tag != ''
     uses: ./.github/workflows/docker-image.yml
     with:
       tag: ${{ needs.release.outputs.tag }}
