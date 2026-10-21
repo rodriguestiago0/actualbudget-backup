@@ -3,27 +3,43 @@ services:
     image: rodriguestiago0/actualbudget-backup:latest
     restart: always
     environment:
-    #   RCLONE_REMOTE_NAME: 'ActualBudgetBackup'
-    #   RCLONE_REMOTE_DIR: '/ActualBudgetBackup/'
-    #   RCLONE_GLOBAL_FLAG: ''
-        ACTUAL_BUDGET_URL: 'https://actual.example.com'
-        ACTUAL_BUDGET_PASSWORD: ''
-        ACTUAL_BUDGET_SYNC_ID: ''
-    #   ACTUAL_BUDGET_E2E_PASSWORD: ''
-    #   CRON: '0 0 * * *'
-    #   BACKUP_FILE_SUFFIX: '%Y%m%d'
-    #   BACKUP_KEEP_DAYS: 0
-    #   TIMEZONE: 'UTC'
-    #   PING_URL: ''
-    #   PING_URL_WHEN_START: ''
-    #   PING_URL_WHEN_SUCCESS: ''
-    #   PING_URL_WHEN_FAILURE: ''
-    #   NOTIFICATION_URLS: ''
-    #   NOTIFICATION_ON: 'success,failure'
+      # Actual server (required)
+      ACTUAL_BUDGET_URL: 'https://actual.example.com'
+      ACTUAL_BUDGET_PASSWORD: ''
+      ACTUAL_BUDGET_SYNC_ID: ''
+    # ACTUAL_BUDGET_E2E_PASSWORD: ''
+
+      # Where to upload the backups (rclone remote)
+    # RCLONE_REMOTE_NAME: 'ActualBudgetBackup'
+    # RCLONE_REMOTE_DIR: '/ActualBudgetBackup/'
+    # RCLONE_GLOBAL_FLAG: ''
+
+      # Schedule and retention
+    # CRON: '0 0 * * *'
+    # BACKUP_FILE_SUFFIX: '%Y%m%d'
+    # BACKUP_KEEP_DAYS: 0
+    # TIMEZONE: 'UTC'
+
+      # Archive
+    # ZIP_ENABLE: 'TRUE'
+    # ZIP_PASSWORD: ''
+    # ZIP_TYPE: 'zip'
+
+      # Notifications: Telegram, Discord, ntfy, email and more, using
+      # the same URLs as Watchtower. See docs/notifications.md
+    # NOTIFICATION_URLS: 'telegram://<bot-token>@telegram?chats=<chat-id>'
+    # NOTIFICATION_ON: 'success,failure'   # start, success, failure
+
+      # Pings for health check services such as healthchecks.io.
+      # See docs/ping-notifications.md
+    # PING_URL: ''                # when the backup finishes
+    # PING_URL_WHEN_START: ''
+    # PING_URL_WHEN_SUCCESS: ''
+    # PING_URL_WHEN_FAILURE: ''
     volumes:
       - actualbudget-rclone-data:/config/
-    #   - /path/to/env:/.env
-    
+    # - /path/to/env:/.env
+
 volumes:
   actualbudget-rclone-data:
     external: true
