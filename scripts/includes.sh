@@ -521,11 +521,17 @@ function init_env() {
     BACKUP_FILE_DATE="$(echo "${BACKUP_FILE_DATE:-"%Y%m%d"}${BACKUP_FILE_DATE_SUFFIX}" | sed 's/[^0-9a-zA-Z%_-]//g')"
     BACKUP_FILE_DATE_FORMAT="$(echo "${BACKUP_FILE_SUFFIX:-"${BACKUP_FILE_DATE}"}" | sed 's/\///g')"
 
-    # TIMEZONE
+    # TIMEZONE (falls back to TZ, the usual container variable)
     get_env TIMEZONE
-    if [[ -z "${TIMEZONE}" || ! -f "/usr/share/zoneinfo/${TIMEZONE}" ]]; then
-        TIMEZONE="UTC"
+    get_env TZ
+    TIMEZONE="${TIMEZONE:-"${TZ}"}"
+    if [[ -n "${TIMEZONE}" && ! -f "/usr/share/zoneinfo/${TIMEZONE}" ]]; then
+        color red "TIMEZONE: unknown timezone \"${TIMEZONE}\", using UTC"
+        TIMEZONE=""
     fi
+    # TZ takes precedence over /etc/localtime, so keep both in step
+    export TIMEZONE="${TIMEZONE:-"UTC"}"
+    export TZ="${TIMEZONE}"
 
     init_actual_env
 

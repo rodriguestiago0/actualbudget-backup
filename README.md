@@ -220,6 +220,8 @@ Set your timezone name.
 
 Here is timezone list at [wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
+The standard `TZ` variable works too; if both are set, `TIMEZONE` wins. An unknown timezone is logged and UTC is used.
+
 Default: `UTC`
 
 <details>
