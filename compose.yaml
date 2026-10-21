@@ -17,6 +17,12 @@ services:
     #   BACKUP_FILE_SUFFIX: '%Y%m%d'
     #   BACKUP_KEEP_DAYS: 0
     #   TIMEZONE: 'UTC'
+    #   PING_URL: ''
+    #   PING_URL_WHEN_START: ''
+    #   PING_URL_WHEN_SUCCESS: ''
+    #   PING_URL_WHEN_FAILURE: ''
+    #   NOTIFICATION_URLS: ''
+    #   NOTIFICATION_ON: 'success,failure'
     volumes:
       - actualbudget-rclone-data:/config/
     #   - /path/to/env:/.env

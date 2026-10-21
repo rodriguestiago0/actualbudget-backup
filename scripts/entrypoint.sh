@@ -3,8 +3,8 @@
 # shellcheck source=scripts/includes.sh
 . /app/includes.sh
 
-# rclone command
-if [[ "$1" == "rclone" ]]; then
+# rclone and shoutrrr commands
+if [[ "$1" == "rclone" || "$1" == "shoutrrr" ]]; then
     exec "$@"
 fi
 

@@ -15,6 +15,27 @@ RUN npm ci --omit=dev --no-audit --no-fund \
   && npm cache clean --force \
   && node_modules/.bin/actual --version
 
+# Shoutrrr CLI for notifications (https://github.com/nicholas-fedor/shoutrrr).
+# Runs on the build platform; it only downloads and verifies the binary.
+FROM --platform=$BUILDPLATFORM rclone/rclone:sha-9ee9d0a AS shoutrrr
+
+ARG SHOUTRRR_VERSION="0.22.0"
+ARG TARGETARCH
+
+RUN case "${TARGETARCH}" in \
+      amd64) ARCH="amd64" ;; \
+      arm64) ARCH="arm64v8" ;; \
+      arm)   ARCH="armhf" ;; \
+      *)     echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+  && FILE="shoutrrr_linux_${ARCH}_${SHOUTRRR_VERSION}.tar.gz" \
+  && URL="https://github.com/nicholas-fedor/shoutrrr/releases/download/v${SHOUTRRR_VERSION}" \
+  && cd /tmp \
+  && wget -q "${URL}/${FILE}" "${URL}/checksums.txt" \
+  && grep " ${FILE}\$" checksums.txt | sha256sum -c - \
+  && tar xzf "${FILE}" shoutrrr \
+  && mv shoutrrr /usr/local/bin/shoutrrr
+
 FROM base
 
 LABEL org.opencontainers.image.source="https://github.com/rodriguestiago0/actualbudget-backup" \
@@ -28,12 +49,13 @@ ARG USER_ID="1100"
 ENV LOCALTIME_FILE="/tmp/localtime" \
   PATH="/app/node_modules/.bin:${PATH}"
 
-RUN apk add --no-cache bash grep supercronic 7zip nodejs tzdata \
+RUN apk add --no-cache bash grep supercronic 7zip nodejs tzdata curl \
   && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
   && addgroup -g "${USER_ID}" "${USER_NAME}" \
   && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"
 
 COPY --from=cli /app/node_modules /app/node_modules
+COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
 COPY --chmod=755 scripts/*.sh /app/
 
 ENTRYPOINT ["/app/entrypoint.sh"]
