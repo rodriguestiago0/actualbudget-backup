@@ -92,26 +92,40 @@ docker run -d \
 
 #### Automatic Backups with systemd
 
-Instead of relying on the container's built-in cron schedule, you can use systemd timers to trigger your backups. This repository includes a systemd service (`systemd/actualbudget-backup.service`) and a timer (`systemd/actualbudget-backup.timer`) that you can use.
+Instead of keeping the container running with its built-in cron schedule, you can let a systemd timer start a one-off backup container. Logs then go to the journal, and a backup missed while the machine was off runs at the next boot. This repository includes a service (`systemd/actualbudget-backup.service`) and a timer (`systemd/actualbudget-backup.timer`).
+
+> **Note:** Use either systemd or `docker compose up -d`, not both, or every backup runs twice. In this mode `CRON` is not used, and the timer follows the host's timezone.
 
 **Installation Manual:**
 
 1. Edit the `WorkingDirectory` in `systemd/actualbudget-backup.service` to point to the directory containing your `compose.yaml`.
-2. Copy both files to the systemd directory:
+2. If the backup container is running, stop it with `docker compose down`.
+3. Copy both files to the systemd directory:
    ```shell
    sudo cp systemd/actualbudget-backup.service /etc/systemd/system/
    sudo cp systemd/actualbudget-backup.timer /etc/systemd/system/
    ```
-3. Reload the systemd manager configuration:
+4. Reload the systemd manager configuration:
    ```shell
    sudo systemctl daemon-reload
    ```
-4. Enable and start the timer so it runs automatically:
+5. Run a backup once to check that it works, then enable and start the timer (only the timer is enabled, not the service):
    ```shell
+   sudo systemctl start actualbudget-backup.service
    sudo systemctl enable --now actualbudget-backup.timer
    ```
 
 By default, the provided timer is configured to run daily at `00:00`. You can customize this schedule by editing the `OnCalendar` rule in the `actualbudget-backup.timer` file.
+
+Check the result of the last backup and the next scheduled run with:
+
+```shell
+systemctl status actualbudget-backup.service
+journalctl -u actualbudget-backup.service
+systemctl list-timers actualbudget-backup.timer
+```
+
+A failed backup marks the service as failed.
 
 ## Environment Variables
 
