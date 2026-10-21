@@ -11,8 +11,14 @@ on:
     branches: [main]
 
 jobs:
+  # test and build are cancelled when a newer commit arrives for the same
+  # branch/PR, so a burst of merges produces a single release. The release
+  # and publish jobs are never cancelled once started.
   test:
     runs-on: ubuntu-latest
+    concurrency:
+      group: test-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
 
@@ -30,6 +36,9 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
 
