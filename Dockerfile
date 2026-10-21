@@ -28,7 +28,7 @@ ARG USER_ID="1100"
 ENV LOCALTIME_FILE="/tmp/localtime" \
   PATH="/app/node_modules/.bin:${PATH}"
 
-RUN apk add --no-cache bash grep supercronic 7zip nodejs tzdata \
+RUN apk add --no-cache bash grep supercronic 7zip nodejs tzdata curl \
   && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
   && addgroup -g "${USER_ID}" "${USER_NAME}" \
   && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"

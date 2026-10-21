@@ -5,6 +5,7 @@
 
 BACKUP_DIR="backup"
 FAILED_COUNT=0
+UPLOADED_COUNT=0
 
 function clear_dir() {
     rm -rf "${BACKUP_DIR}"
@@ -114,6 +115,8 @@ function upload() {
         exit 1
     fi
 
+    UPLOADED_COUNT=${#BACKUP_FILES[@]}
+
     for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
     do
         for BACKUP_FILE in "${BACKUP_FILES[@]}"
@@ -156,9 +159,30 @@ function clear_history() {
     fi
 }
 
+########################################
+# Report the result of the backup, including early exits.
+########################################
+function on_exit() {
+    local STATUS=$?
+    local NOW_TEXT
+    NOW_TEXT="$(date +"%Y-%m-%d %H:%M:%S %Z")"
+
+    if [[ ${STATUS} -eq 0 ]]; then
+        send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
+    elif [[ "${FAILED_COUNT}" -gt 0 ]]; then
+        send_notification failure "Backup finished at ${NOW_TEXT} with ${FAILED_COUNT} error(s). Check the container logs for details."
+    else
+        send_notification failure "Backup failed at ${NOW_TEXT}. Check the container logs for details."
+    fi
+}
+
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 
+trap on_exit EXIT
+
 init_env
+
+send_notification start "Backup started at $(date +"%Y-%m-%d %H:%M:%S %Z")."
 
 NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
 

@@ -103,6 +103,90 @@ function check_dir_exist() {
 }
 
 ########################################
+# Send a health check or notification ping. Ping failures are only logged,
+# they never fail the backup.
+# Arguments:
+#     ping type (completion / start / success / failure)
+#     subject
+#     content
+########################################
+function send_ping() {
+    local URL_VAR
+
+    case "$1" in
+        completion) URL_VAR="PING_URL" ;;
+        start)      URL_VAR="PING_URL_WHEN_START" ;;
+        success)    URL_VAR="PING_URL_WHEN_SUCCESS" ;;
+        failure)    URL_VAR="PING_URL_WHEN_FAILURE" ;;
+        *)          color red "illegal ping type \"$1\", only supports completion, start, success, failure"; return ;;
+    esac
+
+    local OPTIONS_VAR="${URL_VAR}_CURL_OPTIONS"
+    local CURL_URL="${!URL_VAR}"
+    local CURL_OPTIONS="${!OPTIONS_VAR}"
+    local SUBJECT_PLACEHOLDER='%{subject}'
+    local CONTENT_PLACEHOLDER='%{content}'
+
+    if [[ -z "${CURL_URL}" ]]; then
+        return
+    fi
+
+    # spaces become '+' in the URL; options get the text as is
+    CURL_URL="${CURL_URL//"${SUBJECT_PLACEHOLDER}"/"${2// /+}"}"
+    CURL_URL="${CURL_URL//"${CONTENT_PLACEHOLDER}"/"${3// /+}"}"
+    CURL_OPTIONS="${CURL_OPTIONS//"${SUBJECT_PLACEHOLDER}"/"$2"}"
+    CURL_OPTIONS="${CURL_OPTIONS//"${CONTENT_PLACEHOLDER}"/"$3"}"
+
+    # eval so quoted options such as -H "Title: x" are passed as one argument
+    local CURL_COMMAND="curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"\${CURL_URL}\""
+
+    if [[ "${PING_DEBUG}" == "TRUE" ]]; then
+        color yellow "curl command: curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"${CURL_URL}\""
+    fi
+
+    if eval "${CURL_COMMAND}"; then
+        color blue "$1 ping has been sent successfully"
+    else
+        color red "$1 ping sending has failed"
+    fi
+}
+
+########################################
+# Send the pings configured for a backup event.
+# Arguments:
+#     event (start / success / failure)
+#     content
+########################################
+function send_notification() {
+    case "$1" in
+        start)
+            send_ping start "Actual Budget Backup Start" "$2"
+            ;;
+        success)
+            send_ping success "Actual Budget Backup Success" "$2"
+            send_ping completion "Actual Budget Backup Success" "$2"
+            ;;
+        failure)
+            send_ping failure "Actual Budget Backup Failed" "$2"
+            send_ping completion "Actual Budget Backup Failed" "$2"
+            ;;
+    esac
+}
+
+function init_env_ping() {
+    local VAR
+
+    for VAR in PING_URL PING_URL_WHEN_START PING_URL_WHEN_SUCCESS PING_URL_WHEN_FAILURE
+    do
+        get_env "${VAR}"
+        get_env "${VAR}_CURL_OPTIONS"
+    done
+
+    get_env PING_DEBUG
+    PING_DEBUG="${PING_DEBUG^^}"
+}
+
+########################################
 # Export variables from .env file.
 # Arguments:
 #     None
@@ -281,6 +365,9 @@ function init_env() {
     # export
     export_env_file
 
+    # PING (first, so a failure later in init_env can still be reported)
+    init_env_ping
+
     # CRON
     get_env CRON
     CRON="${CRON:-"0 0 * * *"}"
@@ -357,5 +444,14 @@ function init_env() {
     color yellow "BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS}"
 
     color yellow "TIMEZONE: ${TIMEZONE}"
+
+    # only say which pings are set, the URLs may contain tokens
+    local PING_VAR
+    for PING_VAR in PING_URL PING_URL_WHEN_START PING_URL_WHEN_SUCCESS PING_URL_WHEN_FAILURE
+    do
+        if [[ -n "${!PING_VAR}" ]]; then
+            color yellow "${PING_VAR}: set"
+        fi
+    done
     color yellow "========================================"
 }
