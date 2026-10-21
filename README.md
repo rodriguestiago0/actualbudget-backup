@@ -1,10 +1,12 @@
 # Actual Budget backup
 
-Docker containers for [actualbudget](https://actualbudget.org) backup to remote.
+Docker image that backs up [Actual Budget](https://actualbudget.org) to any remote storage, on a schedule.
 
 Budgets are downloaded with the official [Actual CLI](https://actualbudget.org/docs/api/cli/) and uploaded with [Rclone](https://rclone.org/) to any storage system it supports.
 
-Heavily inspired at [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup)
+Heavily inspired by [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup)
+
+Images are published to Docker Hub as [`rodriguestiago0/actualbudget-backup`](https://hub.docker.com/r/rodriguestiago0/actualbudget-backup) (`latest` and versioned tags such as `v1.0.13`) for `linux/amd64`, `linux/arm64`, `linux/arm/v7` and `linux/arm/v6`.
 
 > **Important:** We assume you already read the `actualbudget` [documentation](https://actualbudget.org/docs/), and have an instance up and running.
 
@@ -55,7 +57,7 @@ docker run --rm -it \
 
 #### Use Docker Compose (Recommend)
 
-Download `compose.yaml` to you machine, edit the [environment variables](#environment-variables) and start it.
+Download [`compose.yaml`](compose.yaml) to your machine, edit the [environment variables](#environment-variables) and start it.
 
 You need to go to the directory where the `compose.yaml` file is saved.
 
@@ -75,13 +77,16 @@ docker compose down
 
 #### Automatic Backups without docker compose
 
-Start the backup container with default settings. (automatic backup at 12AM every day)
+Start the backup container with the default schedule (a backup at 12AM every day).
 
 ```shell
 docker run -d \
   --restart=always \
   --name actualbudget_backup \
   --mount type=volume,source=actualbudget-rclone-data,target=/config/ \
+  -e ACTUAL_BUDGET_URL='https://actual.example.com' \
+  -e ACTUAL_BUDGET_PASSWORD='your-password' \
+  -e ACTUAL_BUDGET_SYNC_ID='your-sync-id' \
   rodriguestiago0/actualbudget-backup:latest
 ```
 
@@ -110,11 +115,13 @@ By default, the provided timer is configured to run daily at `00:00`. You can cu
 
 ## Environment Variables
 
-> **Note:** The container will run with no environment variables specified without error, however if you haven't set at least `ACTUAL_BUDGET_URL`, `ACTUAL_BUDGET_PASSWORD`, and `ACTUAL_BUDGET_SYNC_ID`, no backup will successfully happen.
+> **Note:** At least `ACTUAL_BUDGET_URL`, `ACTUAL_BUDGET_PASSWORD` and `ACTUAL_BUDGET_SYNC_ID` must be set. The container stops at startup when `ACTUAL_BUDGET_SYNC_ID` is missing or the rclone remote cannot be found.
 
 ### ACTUAL_BUDGET_URL
 
 URL for the actual budget server, e.g. `https://actual.example.com`.
+
+Default: `https://localhost:5006`
 
 ### ACTUAL_BUDGET_PASSWORD
 
@@ -123,6 +130,14 @@ Password for the actual budget server. If you're setting this through the compos
 ### ACTUAL_BUDGET_SYNC_ID
 
 Actual Sync ID. You can find this by logging into your Actual server in a web browser, go to `settings > show advanced settings` and the sync ID should be in the top block there.
+
+To back up several budgets, see [multiple sync ids](docs/multiple-sync-ids.md).
+
+### ACTUAL_BUDGET_E2E_PASSWORD
+
+The end-to-end encryption password, only needed if your budget is encrypted. See [encrypted files](docs/e2e-encrypted-backups.md).
+
+Default: `''`
 
 ### Actual CLI version
 
@@ -204,7 +219,7 @@ Default: `0`
 
 ### BACKUP_FILE_SUFFIX
 
-Each backup file is suffixed by default with `%Y%m%d`. If you back up your budget multiple times a day, that suffix is not unique any more. This environment variable allows you to append a unique suffix to that date to create a unique backup name.
+The date format used in backup file names (`backup.<sync id>.<suffix>.zip`). If you back up your budget multiple times a day, the default `%Y%m%d` is not unique any more, so include the time, e.g. `%Y%m%d_%H%M`.
 
 You can use any character except for `/` since it cannot be used in Linux file names.
 
@@ -223,6 +238,24 @@ Here is timezone list at [wikipedia](https://en.wikipedia.org/wiki/List_of_tz_da
 The standard `TZ` variable works too; if both are set, `TIMEZONE` wins. An unknown timezone is logged and UTC is used.
 
 Default: `UTC`
+
+### NOTIFICATION_URLS
+
+Send a message to Telegram, Discord, Slack, ntfy, email and [many other services](https://shoutrrr.nickfedor.com/latest/services/overview/) when a backup starts, succeeds or fails. Takes one or more [Shoutrrr](https://github.com/nicholas-fedor/shoutrrr) URLs separated by spaces, the same URLs Watchtower uses, e.g. `telegram://<bot-token>@telegram?chats=<chat-id>`.
+
+`NOTIFICATION_ON` chooses the events: any of `start`, `success`, `failure` (default `success,failure`).
+
+See [notifications](docs/notifications.md).
+
+Default: `''`
+
+### PING_URL
+
+Call a URL when a backup finishes, for health check services such as [healthchecks.io](https://healthchecks.io/). `PING_URL_WHEN_START`, `PING_URL_WHEN_SUCCESS` and `PING_URL_WHEN_FAILURE` are called on those events.
+
+See [ping notifications](docs/ping-notifications.md).
+
+Default: `''`
 
 <details>
 <summary><strong>※ Other environment variables</strong></summary>
