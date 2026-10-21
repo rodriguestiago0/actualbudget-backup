@@ -189,7 +189,7 @@ Default: `''`
 
 Pack all backup files into a compressed archive. When set to `'FALSE'`, each backup file will be a uncompressed tar archive.
 
-Each archive contains `db.sqlite` and `metadata.json` at its root, so a `zip` backup without a password can be imported directly in Actual (`Import file > Actual`).
+Each archive contains `db.sqlite` and `metadata.json` at its root, so a `zip` backup without a password can be imported directly in Actual (`Import file > Actual`). See [restore a backup](docs/restore.md).
 
 Default: `TRUE`
 
@@ -316,6 +316,7 @@ We will use the environment variables first, followed by the contents of the fil
 - [Multiple remote destinations](docs/multiple-remote-destinations.md)
 - [Multiple sync ids](docs/multiple-sync-ids.md)
 - [Manually trigger a backup](docs/manually-trigger-a-backup.md)
+- [Restore a backup](docs/restore.md)
 - [Encrypted files](docs/e2e-encrypted-backups.md)
 - [Notifications (Telegram, Discord, ntfy, email, ...)](docs/notifications.md)
 - [Ping notifications](docs/ping-notifications.md)
