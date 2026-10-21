@@ -164,6 +164,8 @@ Rclone global flags, see [flags](https://rclone.org/flags/).
 
 **Do not add flags that will change the output, such as `-P`, which will affect the deletion of outdated backup files.**
 
+To use an rclone config file somewhere other than `/config/rclone/rclone.conf`, mount it and point rclone at it, e.g. `RCLONE_GLOBAL_FLAG: '--config /path/to/rclone.conf'`. Remotes defined through rclone's own environment variables (e.g. `RCLONE_CONFIG_MYREMOTE_TYPE`) work as well.
+
 Default: `''`
 
 ### ZIP_ENABLE

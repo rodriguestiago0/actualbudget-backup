@@ -31,19 +31,18 @@ function color() {
 #     None
 ########################################
 function check_rclone_connection() {
-    # check configuration exist
-    local RCLONE_CONFIG_FILE
-    RCLONE_CONFIG_FILE=$(rclone config file 2>&1 | grep -o '/[^[:space:]]*rclone\.conf')
-    if ! grep -qF "[${RCLONE_REMOTE_NAME}]" "${RCLONE_CONFIG_FILE}" 2> /dev/null; then
-        color red "rclone configuration information not found"
-        color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup#configure-rclone-%EF%B8%8F-must-read-%EF%B8%8F"
-        exit 1
-    fi
-
     # check flags validity
     if ! rclone ${RCLONE_GLOBAL_FLAG} version > /dev/null 2>&1; then
         color red "illegal rclone global flags"
         color blue "Please check https://rclone.org/flags/"
+        exit 1
+    fi
+
+    # check configuration exist
+    # (listremotes honours --config, RCLONE_CONFIG and remotes defined via env)
+    if ! rclone ${RCLONE_GLOBAL_FLAG} listremotes 2> /dev/null | grep -qxF "${RCLONE_REMOTE_NAME}:"; then
+        color red "rclone configuration information not found $(color yellow "[${RCLONE_REMOTE_NAME}]")"
+        color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup#configure-rclone-%EF%B8%8F-must-read-%EF%B8%8F"
         exit 1
     fi
 
