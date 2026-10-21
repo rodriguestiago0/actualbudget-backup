@@ -1,6 +1,8 @@
 # Actual Budget backup
 
-Docker containers for [actualbudget](https://actualbudger.org) backup to remote.
+Docker containers for [actualbudget](https://actualbudget.org) backup to remote.
+
+Budgets are downloaded with the official [Actual CLI](https://actualbudget.org/docs/api/cli/) and uploaded with [Rclone](https://rclone.org/) to any storage system it supports.
 
 Heavily inspired at [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup)
 
@@ -112,7 +114,7 @@ By default, the provided timer is configured to run daily at `00:00`. You can cu
 
 ### ACTUAL_BUDGET_URL
 
-URL for the actual budget server, without a trailing `/`
+URL for the actual budget server, e.g. `https://actual.example.com`.
 
 ### ACTUAL_BUDGET_PASSWORD
 
@@ -122,9 +124,15 @@ Password for the actual budget server. If you're setting this through the compos
 
 Actual Sync ID. You can find this by logging into your Actual server in a web browser, go to `settings > show advanced settings` and the sync ID should be in the top block there.
 
-### ACTUAL_API_VERSION
+### Actual CLI version
 
-Optional version of the `@actual-app/api` package used by the backup process. This can be used to pin a specific version, for example `ACTUAL_API_VERSION: 'latest'` or `ACTUAL_API_VERSION: '25.8.0'`. If omitted, the container defaults to `latest`.
+The [Actual CLI](https://actualbudget.org/docs/api/cli/) (`@actual-app/cli`) is installed when the image is built, and its version is pinned in [`package.json`](package.json). Each image release ships a tested CLI version, so nothing is downloaded at backup time. You can check which version an image contains with:
+
+```shell
+docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:latest --version
+```
+
+> **Note:** `ACTUAL_API_VERSION` is no longer used. Keep your Actual server reasonably up to date; if it is much older than the bundled CLI, pin an older image release.
 
 ### RCLONE_REMOTE_NAME
 
@@ -161,6 +169,8 @@ Default: `''`
 ### ZIP_ENABLE
 
 Pack all backup files into a compressed archive. When set to `'FALSE'`, each backup file will be a uncompressed tar archive.
+
+Each archive contains `db.sqlite` and `metadata.json` at its root, so a `zip` backup without a password can be imported directly in Actual (`Import file > Actual`).
 
 Default: `TRUE`
 
@@ -254,8 +264,8 @@ As an alternative to passing sensitive information via environment variables, `_
 
 ```shell
 docker run -d \
-  -e ACTUAL_BUDGET_PASSWORD=/run/secrets/actual-budget-password \
-  rodriguestiag0/actualbudget-backup:latest
+  -e ACTUAL_BUDGET_PASSWORD_FILE=/run/secrets/actual-budget-password \
+  rodriguestiago0/actualbudget-backup:latest
 ```
 
 ## About Priority

@@ -1,0 +1,9 @@
+{
+  "name": "actualbudget-backup",
+  "private": true,
+  "description": "Runtime dependencies for the actualbudget-backup image",
+  "license": "MIT",
+  "dependencies": {
+    "@actual-app/cli": "26.10.0"
+  }
+}

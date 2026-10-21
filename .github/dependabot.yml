@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Actual CLI (keep it in step with your Actual server version)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

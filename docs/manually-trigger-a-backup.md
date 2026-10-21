@@ -28,3 +28,5 @@ docker run \
 You also need to mount the rclone config file and set the environment variables.
 
 The only difference is that the environment variable `CRON` does not work because it does not start the CRON program, but exits the container after the backup is done.
+
+The container exits with status `0` when every budget was backed up and uploaded, and `1` otherwise, so schedulers such as systemd or Kubernetes CronJobs can detect failed backups. Budgets that downloaded successfully are still uploaded even if another budget failed, and old backups are not deleted (`BACKUP_KEEP_DAYS`) after a failed run.
