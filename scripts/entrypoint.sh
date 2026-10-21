@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # shellcheck source=scripts/includes.sh
-. /app/includes.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/includes.sh"
 
 # rclone and shoutrrr commands
 if [[ "$1" == "rclone" || "$1" == "shoutrrr" ]]; then

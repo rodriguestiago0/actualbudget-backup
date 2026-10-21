@@ -1,0 +1,24 @@
+[Unit]
+Description=ActualBudget Backup Service (without Docker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=actualbudget-backup
+Group=actualbudget-backup
+# Working files and the rclone config live in /var/lib/actualbudget-backup
+StateDirectory=actualbudget-backup
+WorkingDirectory=/var/lib/actualbudget-backup
+Environment=HOME=/var/lib/actualbudget-backup
+Environment=RCLONE_CONFIG=/var/lib/actualbudget-backup/rclone.conf
+# Same variables as .env.example; settings here override the ones above
+EnvironmentFile=/etc/actualbudget-backup/backup.env
+ExecStart=/usr/bin/bash /opt/actualbudget-backup/scripts/backup.sh
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+# No [Install] section: the service is started by actualbudget-backup.timer

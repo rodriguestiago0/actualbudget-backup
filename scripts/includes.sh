@@ -3,8 +3,15 @@
 # RCLONE_GLOBAL_FLAG is intentionally word-split into multiple flags.
 # shellcheck disable=SC2034,SC2086,SC2153
 
-ENV_FILE="/.env"
+ENV_FILE="${ENV_FILE:-"/.env"}"
 CRON_CONFIG_FILE="${HOME}/crontabs"
+
+# Outside the image (e.g. run by systemd), use the Actual CLI installed
+# with `npm ci` next to the scripts
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+if [[ -d "${SCRIPT_DIR}/../node_modules/.bin" ]]; then
+    PATH="$(readlink -f "${SCRIPT_DIR}/../node_modules/.bin"):${PATH}"
+fi
 
 #################### Function ####################
 ########################################

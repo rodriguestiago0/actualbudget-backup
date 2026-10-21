@@ -127,6 +127,8 @@ systemctl list-timers actualbudget-backup.timer
 
 A failed backup marks the service as failed.
 
+To run the backup without Docker at all, see [run without Docker](docs/run-without-docker.md).
+
 ## Environment Variables
 
 > **Note:** At least `ACTUAL_BUDGET_URL`, `ACTUAL_BUDGET_PASSWORD` and `ACTUAL_BUDGET_SYNC_ID` must be set. The container stops at startup when `ACTUAL_BUDGET_SYNC_ID` is missing or the rclone remote cannot be found.
@@ -331,6 +333,7 @@ We will use the environment variables first, followed by the contents of the fil
 - [Multiple sync ids](docs/multiple-sync-ids.md)
 - [Manually trigger a backup](docs/manually-trigger-a-backup.md)
 - [Restore a backup](docs/restore.md)
+- [Run without Docker (systemd)](docs/run-without-docker.md)
 - [Encrypted files](docs/e2e-encrypted-backups.md)
 - [Notifications (Telegram, Discord, ntfy, email, ...)](docs/notifications.md)
 - [Ping notifications](docs/ping-notifications.md)
