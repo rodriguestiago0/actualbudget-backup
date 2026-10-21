@@ -92,6 +92,33 @@ function download_budget() {
     fi
 }
 
+########################################
+# Warn when the Actual server is older than the bundled CLI. The CLI applies
+# its own database migrations, so the backup can only be imported into an
+# Actual version at least as new as the CLI.
+########################################
+function check_server_version() {
+    local CLI_VERSION
+    local SERVER_VERSION
+
+    CLI_VERSION="$(actual --version 2> /dev/null)"
+    SERVER_VERSION="$(ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
+        ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
+        actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+
+    if [[ -z "${SERVER_VERSION}" ]]; then
+        color yellow "could not determine the Actual server version (Actual CLI ${CLI_VERSION})"
+        return
+    fi
+
+    color blue "Actual server ${SERVER_VERSION}, Actual CLI ${CLI_VERSION}"
+
+    if version_lt "${SERVER_VERSION}" "${CLI_VERSION}"; then
+        color yellow "WARNING: your Actual server (${SERVER_VERSION}) is older than the Actual CLI in this image (${CLI_VERSION})."
+        color yellow "WARNING: these backups can only be imported into Actual ${CLI_VERSION} or newer. Upgrade Actual, or use an image release whose bundled CLI is not newer than your server."
+    fi
+}
+
 function backup() {
     mkdir -p "${BACKUP_DIR}"
 
@@ -163,6 +190,8 @@ init_env
 NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
 
 check_rclone_connection any
+
+check_server_version
 
 clear_dir
 backup

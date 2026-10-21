@@ -79,6 +79,29 @@ function check_rclone_connection() {
 }
 
 ########################################
+# Check whether a version is lower than another (e.g. 26.3.0 < 26.10.0).
+# Pre-release suffixes such as "-nightly.20261021" are ignored.
+# Arguments:
+#     version
+#     other version
+# Returns:
+#     0 if version < other version, 1 otherwise or if either is not numeric
+########################################
+function version_lt() {
+    local A B i
+    IFS=. read -ra A <<< "${1%%-*}"
+    IFS=. read -ra B <<< "${2%%-*}"
+
+    for i in 0 1 2; do
+        [[ "${A[i]:-0}" =~ ^[0-9]+$ && "${B[i]:-0}" =~ ^[0-9]+$ ]] || return 1
+        (( 10#${A[i]:-0} < 10#${B[i]:-0} )) && return 0
+        (( 10#${A[i]:-0} > 10#${B[i]:-0} )) && return 1
+    done
+
+    return 1
+}
+
+########################################
 # Check file is exist.
 # Arguments:
 #     file
