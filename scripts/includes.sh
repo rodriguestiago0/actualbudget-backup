@@ -1,4 +1,7 @@
 #!/bin/bash
+# Variables like RCLONE_REMOTE_NAME_0 are read indirectly via ${!VAR}, and
+# RCLONE_GLOBAL_FLAG is intentionally word-split into multiple flags.
+# shellcheck disable=SC2034,SC2086,SC2153
 
 ENV_FILE="/.env"
 CRON_CONFIG_FILE="${HOME}/crontabs"
@@ -29,17 +32,16 @@ function color() {
 ########################################
 function check_rclone_connection() {
     # check configuration exist
-    local RCLONE_CONFIG_FILE=$(rclone config file 2>&1 | grep -o '/[^[:space:]]*rclone\.conf')
-    grep -c "\[${RCLONE_REMOTE_NAME}\]" "${RCLONE_CONFIG_FILE}" > /dev/null 2>&1
-    if [[ $? != 0 ]]; then
+    local RCLONE_CONFIG_FILE
+    RCLONE_CONFIG_FILE=$(rclone config file 2>&1 | grep -o '/[^[:space:]]*rclone\.conf')
+    if ! grep -qF "[${RCLONE_REMOTE_NAME}]" "${RCLONE_CONFIG_FILE}" 2> /dev/null; then
         color red "rclone configuration information not found"
         color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup#configure-rclone-%EF%B8%8F-must-read-%EF%B8%8F"
         exit 1
     fi
 
     # check flags validity
-    rclone ${RCLONE_GLOBAL_FLAG} version > /dev/null 2>&1
-    if [[ $? != 0 ]]; then
+    if ! rclone ${RCLONE_GLOBAL_FLAG} version > /dev/null 2>&1; then
         color red "illegal rclone global flags"
         color blue "Please check https://rclone.org/flags/"
         exit 1
@@ -50,12 +52,10 @@ function check_rclone_connection() {
 
     for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
     do
-        rclone ${RCLONE_GLOBAL_FLAG} lsd "${RCLONE_REMOTE_X}" > /dev/null
-        if [[ $? != 0 ]]; then
+        if ! rclone ${RCLONE_GLOBAL_FLAG} lsd "${RCLONE_REMOTE_X}" > /dev/null; then
             color red "storage system connection may not be initialized, try initializing $(color yellow "[${RCLONE_REMOTE_X}]")"
 
-            rclone ${RCLONE_GLOBAL_FLAG} mkdir "${RCLONE_REMOTE_X}"
-            if [[ $? != 0 ]]; then
+            if ! rclone ${RCLONE_GLOBAL_FLAG} mkdir "${RCLONE_REMOTE_X}"; then
                 color red "storage system connection failure $(color yellow "[${RCLONE_REMOTE_X}]")"
 
                 ((ERROR_COUNT++))
@@ -115,7 +115,8 @@ function export_env_file() {
     if [[ -f "${ENV_FILE}" ]]; then
         color blue "find \"${ENV_FILE}\" file and export variables"
         set -a
-        source <(cat "${ENV_FILE}" | sed -e '/^#/d;/^\s*$/d' -e 's/\(\w*\)[ \t]*=[ \t]*\(.*\)/DOTENV_\1=\2/')
+        # shellcheck source=/dev/null
+        source <(sed -e '/^#/d;/^\s*$/d' -e 's/\(\w*\)[ \t]*=[ \t]*\(.*\)/DOTENV_\1=\2/' "${ENV_FILE}")
         set +a
     fi
 }
@@ -179,7 +180,7 @@ function get_rclone_remote_list() {
         fi
 
         RCLONE_REMOTE_X=$(echo "${!RCLONE_REMOTE_NAME_X_REFER}:${!RCLONE_REMOTE_DIR_X_REFER}" | sed 's@\(/*\)$@@')
-        RCLONE_REMOTE_LIST=(${RCLONE_REMOTE_LIST[@]} "${RCLONE_REMOTE_X}")
+        RCLONE_REMOTE_LIST+=("${RCLONE_REMOTE_X}")
 
         ((i++))
     done
@@ -195,12 +196,12 @@ function init_actual_sync_list() {
     while true; do
         ACTUAL_BUDGET_SYNC_ID_X_REFER="ACTUAL_BUDGET_SYNC_ID_${i}"
         get_env "${ACTUAL_BUDGET_SYNC_ID_X_REFER}"
-    
-        if [[ -z "${!ACTUAL_BUDGET_SYNC_ID_X_REFER}" ]]; then        
+
+        if [[ -z "${!ACTUAL_BUDGET_SYNC_ID_X_REFER}" ]]; then
             break
         fi
-        
-        ACTUAL_BUDGET_SYNC_ID_LIST=(${ACTUAL_BUDGET_SYNC_ID_LIST[@]} ${!ACTUAL_BUDGET_SYNC_ID_X_REFER})
+
+        ACTUAL_BUDGET_SYNC_ID_LIST+=("${!ACTUAL_BUDGET_SYNC_ID_X_REFER}")
 
         ((i++))
     done
@@ -221,26 +222,26 @@ function init_actual_e2e_list(){
     while true; do
         ACTUAL_BUDGET_E2E_PASSWORD_X_REFER="ACTUAL_BUDGET_E2E_PASSWORD_${i}"
         get_env "${ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}"
-    
-        if [[ -z "${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}" ]]; then        
+
+        if [[ -z "${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}" ]]; then
             break
         fi
-        
-        ACTUAL_BUDGET_E2E_PASSWORD_LIST=(${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} ${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER})
+
+        ACTUAL_BUDGET_E2E_PASSWORD_LIST+=("${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}")
 
         ((i++))
     done
 
-    for ACTUAL_BUDGET_E2E_PASSWORD_X in "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}"
-    do
-        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: *****"
-    done
+    if [[ ${#ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} -gt 0 ]]; then
+        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: ${#ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} set"
+    fi
 }
 
 function init_actual_env(){
     # ACTUAL BUDGET
     get_env ACTUAL_BUDGET_URL
     ACTUAL_BUDGET_URL="${ACTUAL_BUDGET_URL:-"https://localhost:5006"}"
+    ACTUAL_BUDGET_URL="${ACTUAL_BUDGET_URL%/}"
     color yellow "ACTUAL_BUDGET_URL: ${ACTUAL_BUDGET_URL}"
 
     get_env ACTUAL_BUDGET_PASSWORD
@@ -249,20 +250,24 @@ function init_actual_env(){
 
     get_env ACTUAL_BUDGET_SYNC_ID
 
-    if [[ -z "${ACTUAL_BUDGET_SYNC_ID}" ]]; then        
+    if [[ -z "${ACTUAL_BUDGET_SYNC_ID}" ]]; then
         color red "Invalid sync id"
         exit 1
-    fi 
-    
+    fi
+
     ACTUAL_BUDGET_SYNC_ID_0="${ACTUAL_BUDGET_SYNC_ID}"
 
     init_actual_sync_list
-	
-	
-	get_env ACTUAL_BUDGET_E2E_PASSWORD
-	ACTUAL_BUDGET_E2E_PASSWORD_0="${ACTUAL_BUDGET_E2E_PASSWORD}"
-	
-	init_actual_e2e_list
+
+    get_env ACTUAL_BUDGET_E2E_PASSWORD
+    ACTUAL_BUDGET_E2E_PASSWORD_0="${ACTUAL_BUDGET_E2E_PASSWORD}"
+
+    init_actual_e2e_list
+
+    get_env ACTUAL_API_VERSION
+    if [[ -n "${ACTUAL_API_VERSION}" ]]; then
+        color yellow "ACTUAL_API_VERSION is no longer used, the Actual CLI version is pinned in the image ($(actual --version 2> /dev/null))"
+    fi
 }
 
 ########################################
@@ -330,8 +335,7 @@ function init_env() {
 
     # TIMEZONE
     get_env TIMEZONE
-    local TIMEZONE_MATCHED_COUNT=$(ls "/usr/share/zoneinfo/${TIMEZONE}" 2> /dev/null | wc -l)
-    if [[ "${TIMEZONE_MATCHED_COUNT}" -ne 1 ]]; then
+    if [[ -z "${TIMEZONE}" || ! -f "/usr/share/zoneinfo/${TIMEZONE}" ]]; then
         TIMEZONE="UTC"
     fi
 

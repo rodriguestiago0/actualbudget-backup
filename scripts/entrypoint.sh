@@ -1,22 +1,19 @@
 #!/bin/bash
 
+# shellcheck source=scripts/includes.sh
 . /app/includes.sh
 
 # rclone command
 if [[ "$1" == "rclone" ]]; then
-    $*
-
-    exit 0
+    exec "$@"
 fi
-
 
 function configure_timezone() {
     ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${LOCALTIME_FILE}"
 }
 
 function configure_cron() {
-    local FIND_CRON_COUNT="$(grep -c 'backup.sh' "${CRON_CONFIG_FILE}" 2> /dev/null)"
-    if [[ "${FIND_CRON_COUNT}" -eq 0 ]]; then
+    if ! grep -q 'backup.sh' "${CRON_CONFIG_FILE}" 2> /dev/null; then
         echo "${CRON} bash /app/backup.sh" >> "${CRON_CONFIG_FILE}"
     fi
 }
@@ -30,9 +27,7 @@ configure_cron
 if [[ "$1" == "backup" ]]; then
     color yellow "Manually triggering a backup will only execute the backup script once, and the container will exit upon completion."
 
-    bash "/app/backup.sh"
-
-    exit 0
+    exec bash "/app/backup.sh"
 fi
 
 # foreground run crond
