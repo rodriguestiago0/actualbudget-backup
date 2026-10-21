@@ -132,7 +132,9 @@ The [Actual CLI](https://actualbudget.org/docs/api/cli/) (`@actual-app/cli`) is 
 docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:latest --version
 ```
 
-> **Note:** `ACTUAL_API_VERSION` is no longer used. Keep your Actual server reasonably up to date; if it is much older than the bundled CLI, pin an older image release.
+> **Note:** `ACTUAL_API_VERSION` is no longer used.
+
+The CLI upgrades the downloaded budget to its own database version, so **a backup can only be imported into an Actual version at least as new as the bundled CLI**. Each backup logs both versions and prints a warning when your server is older than the CLI. Restoring into the same or a newer Actual always works; if you can't upgrade your server, use an image release whose CLI is not newer than your server.
 
 ### RCLONE_REMOTE_NAME
 
