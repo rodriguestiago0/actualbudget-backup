@@ -47,7 +47,7 @@ jobs:
       # PRs only build amd64 to stay fast; main builds every published
       # platform so a broken arch blocks the release.
       - name: Build Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
