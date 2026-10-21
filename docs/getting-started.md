@@ -40,7 +40,7 @@ Next you need to tell the container how it's going to talk to your Actual server
 
 `CRON` - This line tells the container what time to perform the backup. By default, it happens at midnight UTC every day. This is fine if your computer is on 24/7, but if the machine you're running this on is only active in the day, you might want to change it to happen when you know it will be on. To do this, enter any valid cron string, but note that the default config only allows one backup per day, so making it occur more frequently will overwrite the first backup.
 
-`TIMEZONE` - your local timezone. If you're changing the cron time, you will also want to set the timezone, else it will not run at the time you want it to. It's entered in standard TZ data format. e.g. to set the timezone to UK time, you'd set it to `TIMEZONE: 'Europe/London'`
+`TIMEZONE` - your local timezone. If you're changing the cron time, you will also want to set the timezone, else it will not run at the time you want it to. It's entered in standard TZ data format. e.g. to set the timezone to UK time, you'd set it to `TIMEZONE: 'Europe/London'`. `TZ` works too.
 
 `BACKUP_KEEP_DAYS` - by default, this tool never deletes old backups. To change this behaviour, set this to the number of days to keep backups for. e.g. for a weeks worth of backups, set `BACKUP_KEEP_DAYS: 7`
 
