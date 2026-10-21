@@ -1,0 +1,30 @@
+name: Docker Hub description
+
+# Keeps the Docker Hub page in step with the README. The DOCKERHUB_TOKEN
+# needs the "Read, Write, Delete" scope to update descriptions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-description.yml
+  workflow_dispatch:
+
+jobs:
+  description:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: rodriguestiago0/actualbudget-backup
+          short-description: Back up Actual Budget to any rclone remote, with notifications
+          enable-url-completion: true
