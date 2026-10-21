@@ -4,6 +4,8 @@ The backup can call a URL when it starts, succeeds or fails. Use it with health 
 
 The variables are the same as in [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup#ping), so existing configurations can be reused.
 
+For chat and push services such as Telegram, Discord or Pushover, [notifications](notifications.md) are easier to set up.
+
 <br>
 
 ## Usage

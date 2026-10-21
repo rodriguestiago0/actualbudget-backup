@@ -152,7 +152,53 @@ function send_ping() {
 }
 
 ########################################
-# Send the pings configured for a backup event.
+# Send a notification through Shoutrrr (https://shoutrrr.nickfedor.com),
+# the notification library used by Watchtower. Failures are only logged,
+# they never fail the backup.
+# Arguments:
+#     event (start / success / failure)
+#     subject
+#     content
+########################################
+function send_shoutrrr() {
+    if [[ "${#NOTIFICATION_URL_LIST[@]}" -eq 0 ]]; then
+        return
+    fi
+
+    if [[ ",${NOTIFICATION_ON}," != *",$1,"* ]]; then
+        return
+    fi
+
+    local ICON
+    case "$1" in
+        start)   ICON="▶️" ;;
+        success) ICON="✅" ;;
+        failure) ICON="❌" ;;
+    esac
+
+    # one call per URL, so a failing service does not stop the others
+    local URL
+    local OUTPUT
+    local SECRET
+    for URL in "${NOTIFICATION_URL_LIST[@]}"
+    do
+        if OUTPUT="$(shoutrrr send -u "${URL}" -t "${ICON} $2" -m "$3" 2>&1)"; then
+            color blue "${URL%%:*} $1 notification has been sent successfully"
+        else
+            # never print the credentials (user:token@) of the URL
+            if [[ "${URL}" =~ ^[^:]+://([^@/]+)@ ]]; then
+                for SECRET in "${BASH_REMATCH[1]}" ${BASH_REMATCH[1]//:/ }
+                do
+                    OUTPUT="${OUTPUT//"${SECRET}"/***}"
+                done
+            fi
+            color red "${URL%%:*} $1 notification sending has failed: ${OUTPUT}"
+        fi
+    done
+}
+
+########################################
+# Send the pings and notifications configured for a backup event.
 # Arguments:
 #     event (start / success / failure)
 #     content
@@ -161,19 +207,22 @@ function send_notification() {
     case "$1" in
         start)
             send_ping start "Actual Budget Backup Start" "$2"
+            send_shoutrrr start "Actual Budget Backup Start" "$2"
             ;;
         success)
             send_ping success "Actual Budget Backup Success" "$2"
             send_ping completion "Actual Budget Backup Success" "$2"
+            send_shoutrrr success "Actual Budget Backup Success" "$2"
             ;;
         failure)
             send_ping failure "Actual Budget Backup Failed" "$2"
             send_ping completion "Actual Budget Backup Failed" "$2"
+            send_shoutrrr failure "Actual Budget Backup Failed" "$2"
             ;;
     esac
 }
 
-function init_env_ping() {
+function init_env_notification() {
     local VAR
 
     for VAR in PING_URL PING_URL_WHEN_START PING_URL_WHEN_SUCCESS PING_URL_WHEN_FAILURE
@@ -184,6 +233,36 @@ function init_env_ping() {
 
     get_env PING_DEBUG
     PING_DEBUG="${PING_DEBUG^^}"
+
+    # SHOUTRRR
+    # whitespace separated, like Watchtower's WATCHTOWER_NOTIFICATION_URL
+    get_env NOTIFICATION_URLS
+    local URL
+    local URLS
+    read -ra URLS -d '' <<< "${NOTIFICATION_URLS}" || true
+    NOTIFICATION_URL_LIST=()
+    for URL in "${URLS[@]}"
+    do
+        # only the service name is printed, the URL contains credentials
+        if shoutrrr verify -u "${URL}" > /dev/null 2>&1; then
+            NOTIFICATION_URL_LIST+=("${URL}")
+        else
+            color red "NOTIFICATION_URLS: ignoring invalid ${URL%%:*} URL, check it with: shoutrrr verify -u '<url>'"
+        fi
+    done
+
+    get_env NOTIFICATION_ON
+    NOTIFICATION_ON="$(echo "${NOTIFICATION_ON:-"success,failure"}" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
+
+    local EVENT
+    local EVENTS
+    IFS=, read -ra EVENTS <<< "${NOTIFICATION_ON}"
+    for EVENT in "${EVENTS[@]}"
+    do
+        if [[ ! "${EVENT}" =~ ^(start|success|failure)$ ]]; then
+            color yellow "NOTIFICATION_ON: ignoring unknown event \"${EVENT}\", supported: start, success, failure"
+        fi
+    done
 }
 
 ########################################
@@ -366,7 +445,7 @@ function init_env() {
     export_env_file
 
     # PING (first, so a failure later in init_env can still be reported)
-    init_env_ping
+    init_env_notification
 
     # CRON
     get_env CRON
@@ -453,5 +532,10 @@ function init_env() {
             color yellow "${PING_VAR}: set"
         fi
     done
+
+    if [[ "${#NOTIFICATION_URL_LIST[@]}" -gt 0 ]]; then
+        local SERVICES=("${NOTIFICATION_URL_LIST[@]%%:*}")
+        color yellow "NOTIFICATION_URLS: ${SERVICES[*]}, on ${NOTIFICATION_ON}"
+    fi
     color yellow "========================================"
 }
