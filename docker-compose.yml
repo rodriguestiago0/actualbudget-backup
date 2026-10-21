@@ -18,6 +18,8 @@ services:
     #   PING_URL_WHEN_START: ''
     #   PING_URL_WHEN_SUCCESS: ''
     #   PING_URL_WHEN_FAILURE: ''
+    #   NOTIFICATION_URLS: ''
+    #   NOTIFICATION_ON: 'success,failure'
     volumes:
       - actualbudget-rclone-data:/config/
     #   - /path/to/env:/.env

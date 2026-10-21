@@ -278,6 +278,7 @@ We will use the environment variables first, followed by the contents of the fil
 - [Multiple sync ids](docs/multiple-sync-ids.md)
 - [Manually trigger a backup](docs/manually-trigger-a-backup.md)
 - [Encrypted files](docs/e2e-encrypted-backups.md)
+- [Notifications (Telegram, Discord, ntfy, email, ...)](docs/notifications.md)
 - [Ping notifications](docs/ping-notifications.md)
 
 ## License
