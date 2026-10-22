@@ -90,9 +90,9 @@ The backup works, but your server can't import it until you upgrade Actual. A [f
 
 The default file name has only the date. Add the time to [`BACKUP_FILE_SUFFIX`](configuration.md#file-names).
 
-#### Running the container as another user
+#### `Permission denied` with `PUID`/`PGID` or `user:`
 
-The image runs as root, and `user:` in Compose, `--user` or `PUID`/`PGID` are not supported: the backup can't write its working files.
+The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. See [user](configuration.md#user).
 
 <br>
 

@@ -3,6 +3,43 @@
 # shellcheck source=scripts/includes.sh
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/includes.sh"
 
+########################################
+# When started as root with PUID or PGID, give /config to that user and
+# group, then run this script again as them.
+########################################
+function switch_user() {
+    if [[ "$(id -u)" -ne 0 ]]; then
+        return
+    fi
+
+    export_env_file > /dev/null
+    get_env PUID
+    get_env PGID
+
+    if [[ -z "${PUID}" && -z "${PGID}" ]]; then
+        return
+    fi
+
+    local RUN_UID="${PUID:-0}"
+    local RUN_GID="${PGID:-0}"
+
+    if [[ ! "${RUN_UID}" =~ ^[0-9]+$ || ! "${RUN_GID}" =~ ^[0-9]+$ ]]; then
+        color red "PUID and PGID must be numbers, e.g. PUID=1000 and PGID=1000"
+        exit 1
+    fi
+
+    mkdir -p /config
+    if ! chown -R "${RUN_UID}:${RUN_GID}" /config; then
+        color yellow "could not give /config to ${RUN_UID}:${RUN_GID}, rclone may not be able to save its config"
+    fi
+
+    color blue "running as ${RUN_UID}:${RUN_GID}"
+    # su-exec sets HOME to / for a user the image does not know
+    exec su-exec "${RUN_UID}:${RUN_GID}" env HOME="${HOME}" "$0" "$@"
+}
+
+switch_user "$@"
+
 # rclone and shoutrrr commands
 if [[ "$1" == "rclone" || "$1" == "shoutrrr" ]]; then
     exec "$@"
