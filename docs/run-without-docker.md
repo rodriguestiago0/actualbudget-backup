@@ -118,4 +118,4 @@ sudo git checkout "$(sudo git describe --tags --abbrev=0 origin/main)"
 sudo npm ci --omit=dev
 ```
 
-A new release can bundle a newer Actual CLI. Backups can only be restored into an Actual at least as new as that CLI, see [restore a backup](restore.md#version-compatibility).
+A new release can bundle a newer Actual CLI. Backups are restored into a fresh, `latest` Actual, see [restore a backup](restore.md).
