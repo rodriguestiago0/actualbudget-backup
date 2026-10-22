@@ -39,7 +39,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: rodriguestiago0/actualbudget-backup
           # v1.2.3, plus v1.2 and v1 that follow the newest release
