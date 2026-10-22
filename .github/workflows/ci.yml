@@ -65,10 +65,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Rebuilds amd64 from the cache above, to run it
+      - name: Load the amd64 image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: actualbudget-backup:ci
+          cache-from: type=gha
+
+      - name: Smoke test the image
+        run: |
+          # through the entrypoint, as users run them
+          docker run --rm actualbudget-backup:ci rclone version
+          docker run --rm actualbudget-backup:ci shoutrrr --version
+          docker run --rm --entrypoint sh actualbudget-backup:ci -c '
+            set -e
+            actual --version
+            7z i > /dev/null
+            command -v supercronic su-exec curl > /dev/null
+            for f in /app/*.sh; do bash -n "$f"; done
+          '
+
   # Releases everything merged since the last tag, not only this commit:
   # when a newer push cancels this run's build, the newer run releases it.
-  # Commits marked [skip release], or touching only docs, are not
-  # released on their own.
+  # Commits marked [skip release], or that don't change what goes into the
+  # image (docs, tests, CI), are not released on their own.
   release:
     needs: [test, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -112,8 +135,8 @@ jobs:
               echo "Skipped ([skip release]): $SUBJECT"
               continue
             fi
-            if ! git diff --name-only "${COMMIT}^1" "$COMMIT" | grep -qvE '(\.md$|^docs/|^LICENSE$)'; then
-              echo "Skipped (docs only): $SUBJECT"
+            if ! git diff --name-only "${COMMIT}^1" "$COMMIT" | grep -qE '^(Dockerfile|\.dockerignore|package(-lock)?\.json|scripts/)'; then
+              echo "Skipped (image unchanged): $SUBJECT"
               continue
             fi
             echo "Included: $SUBJECT"
@@ -169,8 +192,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.bump.outputs.new_tag }}
         run: |
+          CLI_VERSION=$(jq -r '.packages["node_modules/@actual-app/cli"].version' package-lock.json)
           gh release create "$NEW_TAG" \
             --title "$NEW_TAG" \
+            --notes "Built with @actual-app/cli ${CLI_VERSION}: backups import into Actual ${CLI_VERSION} or newer." \
             --generate-notes
 
   # A release created with GITHUB_TOKEN does not trigger other workflows, so
