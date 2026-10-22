@@ -20,6 +20,10 @@ services:
     # BACKUP_KEEP_DAYS: 0
     # TIMEZONE: 'UTC'
 
+      # Run as this user and group instead of root
+    # PUID: '1000'
+    # PGID: '1000'
+
       # Archive
     # ZIP_ENABLE: 'TRUE'
     # ZIP_PASSWORD: ''

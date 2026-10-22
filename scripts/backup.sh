@@ -196,6 +196,10 @@ function on_exit() {
     local NOW_TEXT
     NOW_TEXT="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 
+    if [[ -n "${WORK_DIR:-}" ]]; then
+        rm -rf "${WORK_DIR}"
+    fi
+
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
     elif [[ "${FAILED_COUNT}" -gt 0 ]]; then
@@ -215,6 +219,10 @@ color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
 send_notification start "Backup started at $(date +"%Y-%m-%d %H:%M:%S %Z")."
 
 NOW="$(date +"${BACKUP_FILE_DATE_FORMAT}")"
+
+# work in a temporary folder, writable whichever user runs the backup
+WORK_DIR="$(mktemp -d)"
+cd "${WORK_DIR}" || exit 1
 
 check_rclone_connection any
 

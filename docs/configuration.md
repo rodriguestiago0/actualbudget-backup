@@ -18,6 +18,7 @@ All settings are environment variables. Only the first three are required.
 | [`ZIP_TYPE`](#archive) | `zip` | `zip` or `7z` |
 | [`ZIP_PASSWORD`](#archive) | | Password for the archive |
 | [`BACKUP_FILE_SUFFIX`](#file-names) | `%Y%m%d` | Date format in file names |
+| [`PUID`, `PGID`](#user) | | Run as this user and group instead of root |
 | [`NOTIFICATION_URLS`](notifications.md) | | Where to send notifications |
 | [`NOTIFICATION_ON`](notifications.md) | `success,failure` | Which events to notify |
 | [`PING_URL`, `PING_URL_WHEN_*`](ping-notifications.md) | | URLs to call for health checks |
@@ -90,6 +91,18 @@ Each budget is saved as its own archive, with `db.sqlite` and `metadata.json` at
 Backups are named `backup.<sync id>.<date>.<zip|7z|tar>`.
 
 **`BACKUP_FILE_SUFFIX`**: the date part, in [`date` format](https://man7.org/linux/man-pages/man1/date.1.html). The default `%Y%m%d` gives one name per day, so a second backup the same day replaces the first. If you back up more often, add the time, e.g. `%Y%m%d_%H%M`. Any `/` is removed.
+
+<br>
+
+## User
+
+By default the container runs as root, so the files it writes, such as the backups in a local or NAS folder and `rclone.conf` when rclone refreshes a token, belong to root.
+
+**`PUID`**, **`PGID`**: the user and group IDs to run as instead, e.g. `PUID: '1000'` and `PGID: '1000'` (`id -u` and `id -g` on the host show yours; on Unraid they are `99` and `100`). At startup, the container gives `/config` to this user and group, then runs the schedule and the backups as them.
+
+Compose's `user: '1000:1000'` works too. The container then never runs as root, so `/config` must already belong to that user.
+
+Either way, a mounted `.env` file and `_FILE` secrets must be readable by that user.
 
 <br>
 
