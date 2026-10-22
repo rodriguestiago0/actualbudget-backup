@@ -11,14 +11,17 @@ on:
     branches: [main]
 
 jobs:
-  # test and build are cancelled when a newer commit arrives for the same
-  # branch/PR, so a burst of merges produces a single release. The release
-  # and publish jobs are never cancelled once started.
+  # On a PR, test and build are cancelled when a newer commit arrives. On
+  # main they are not: a cold-cache build takes over 20 minutes and only
+  # saves its cache at the end, so cancelling it would delay the release.
+  # A newer run waits instead, and replaces any run already waiting, so a
+  # burst of merges still produces a single release. The release and
+  # publish jobs are never cancelled once started.
   test:
     runs-on: ubuntu-latest
     concurrency:
       group: test-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
 
@@ -45,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: build-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
     # PRs only build amd64 to stay fast; main builds every published
