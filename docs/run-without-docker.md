@@ -26,11 +26,11 @@ Clone a release into `/opt/actualbudget-backup` and install the Actual CLI next 
 ```shell
 sudo git clone https://github.com/rodriguestiago0/actualbudget-backup.git /opt/actualbudget-backup
 cd /opt/actualbudget-backup
-sudo git checkout v1.0.15   # the latest release
+sudo git checkout "$(sudo git describe --tags --abbrev=0 origin/main)"   # the latest release
 sudo npm ci --omit=dev
 ```
 
-The CLI version is the one pinned by that release, see [Actual CLI version](../README.md#actual-cli-version).
+The CLI version is the one pinned by that release, see [Actual CLI version](configuration.md#actual-cli-version).
 
 <br>
 
@@ -51,7 +51,7 @@ Name the remote `ActualBudgetBackup`, or set `RCLONE_REMOTE_NAME` in the next st
 
 ## 4. Configure the backup
 
-The settings are the same [environment variables](../README.md#environment-variables) as for the Docker image, in `/etc/actualbudget-backup/backup.env`. Only root can read it, since it contains your password:
+The settings are the same [environment variables](configuration.md) as for the Docker image, in `/etc/actualbudget-backup/backup.env`. Only root can read it, since it contains your password:
 
 ```shell
 sudo install -d -m 755 /etc/actualbudget-backup
@@ -114,7 +114,7 @@ A failed backup marks the service as failed. The service is sandboxed: it can on
 ```shell
 cd /opt/actualbudget-backup
 sudo git fetch --tags
-sudo git checkout v1.x.y   # the new release
+sudo git checkout "$(sudo git describe --tags --abbrev=0 origin/main)"
 sudo npm ci --omit=dev
 ```
 

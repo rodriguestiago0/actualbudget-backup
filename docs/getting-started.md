@@ -1,67 +1,104 @@
-# Getting Started
+# Getting started
 
-This doc should contain the minimal steps required to get a working backup going. It assumes you already have a box with docker running that this will run on, and that that box is able to talk to your Actual server over https.
+This guide sets up a daily backup with Docker Compose. You need:
 
-## Setup
+- a running Actual server, and its password
+- Docker with Compose on the machine that runs the backup, able to reach the Actual server
 
-There are two parts to the setup, one to tell the backup system how to connect to your Actual server, and the other to tell the backup system how to connect to the storage system you are going to save the backup to. This guide will cover setting up the storage first, and then the connection to Actual.
+The commands are for Linux and macOS. On Windows PowerShell, replace the `\` at the end of each line with `` ` ``.
 
-### Storage
+<br>
 
-The backup system uses Rclone to talk to the storage system. At time of writing, Rclone supports 55 different storage systems, so this guide will not tell you exactly how to setup your storage system, for that you should check out [Rclone's excellent documentation](https://rclone.org/docs/). However these are the required steps to get it working in this system.
+## 1. Set up rclone
 
-1. Run the following code to start the setup. Note: if you're running this on Windows, replace the `\` at the end of each line with `` ` `` (backticks)
+The backups are uploaded with [rclone](https://rclone.org/), which supports [many storage systems](https://rclone.org/overview/). Its configuration is kept in a Docker volume, `actualbudget-rclone-data`, which the backup container reads.
 
-   ```shell
-   docker run --rm -it \
-     --mount type=volume,source=actualbudget-rclone-data,target=/config/ \
-     rodriguestiago0/actualbudget-backup:latest \
-     rclone config
-   ```
+Start the rclone setup:
 
-2. Choose the option to create a new remote, and when prompted for a name call it "ActualBudgetBackup".
-3. From here, follow the instructions from Rclone's Documentation to set up your storage.
+```shell
+docker run --rm -it \
+  --mount type=volume,source=actualbudget-rclone-data,target=/config/ \
+  rodriguestiago0/actualbudget-backup:latest \
+  rclone config
+```
 
-The only thing to note that we're doing differently is that Rclone is running inside Docker. There are a few storage providers that require you to launch a web browser as part of the auth flow (e.g Google Drive and OneDrive). If you are using one of these methods, you will need to answer "no" to Rclone launching the browser for you (as the Docker container is headless), and follow the instructions it will then provide to use Rclone on a different machine to get the auth token.
+1. Choose `n` to create a new remote and name it `ActualBudgetBackup`. Another name works too, set it in `RCLONE_REMOTE_NAME`.
+2. Follow [rclone's guide for your storage system](https://rclone.org/docs/).
 
-### Connection to Actual
+Some storage systems, such as Google Drive, OneDrive and Dropbox, sign in through a web browser. The container has none, so answer `n` when rclone asks to open a browser, and follow its instructions to get a token with `rclone authorize` on a computer that has one.
 
-Next you need to tell the container how it's going to talk to your Actual server. To start with, download the [`compose.yaml`](/compose.yaml?raw=1) file to your machine. Put it in its own folder somewhere, and then open it for editing. This guide will go over the mandatory and most used fields here. For the the full list, check the [README](/README.md) for what they do.
+Check the result:
 
-#### Mandatory fields
+```shell
+docker run --rm \
+  --mount type=volume,source=actualbudget-rclone-data,target=/config/ \
+  rodriguestiago0/actualbudget-backup:latest \
+  rclone config show
+```
 
-`ACTUAL_BUDGET_URL` - First, set the url of the Actual Server, including the protocol, (and the port if applicable) e.g. `ACTUAL_BUDGET_URL: 'https://actual.example.com'`
+```ini
+[ActualBudgetBackup]
+type = onedrive
+...
+```
 
-`ACTUAL_BUDGET_PASSWORD` - Second, you need to put the password for your budget. (NB: If your password contains any single quotes (`'`), you need to escape the by doubling them up e.g. if your password was `123Super'Password` you would need to enter `ACTUAL_BUDGET_PASSWORD: '123Super''Password'`.
+Backups go to the `/ActualBudgetBackup/` folder of the remote. Use `RCLONE_REMOTE_DIR` to choose another one. Give the backups a folder of their own: old backups are deleted by name (`backup.*`) when [`BACKUP_KEEP_DAYS`](configuration.md#retention) is set.
 
-`ACTUAL_BUDGET_SYNC_ID` - Finally, this identifies the budget on the server. To get this ID, open Actual in your web browser, and go to `Settings`. At the bottom, click `Show advanced settings`, and the `Sync ID` should be in the top section there.
+<br>
 
-#### Optional fields you might need to change
+## 2. Configure the backup
 
-`CRON` - This line tells the container what time to perform the backup. By default, it happens at midnight UTC every day. This is fine if your computer is on 24/7, but if the machine you're running this on is only active in the day, you might want to change it to happen when you know it will be on. To do this, enter any valid cron string, but note that the default config only allows one backup per day, so making it occur more frequently will overwrite the first backup.
+Download [`compose.yaml`](../compose.yaml) into a folder of its own and set the three required settings:
 
-`TIMEZONE` - your local timezone. If you're changing the cron time, you will also want to set the timezone, else it will not run at the time you want it to. It's entered in standard TZ data format. e.g. to set the timezone to UK time, you'd set it to `TIMEZONE: 'Europe/London'`. `TZ` works too.
+| Setting | Value |
+| --- | --- |
+| `ACTUAL_BUDGET_URL` | The address of your Actual server, as you open it in the browser, e.g. `https://actual.example.com`. If Actual runs in Docker on the same machine, its container address such as `http://actual_server:5006` works when both containers share a network. |
+| `ACTUAL_BUDGET_PASSWORD` | The password you log in to Actual with. |
+| `ACTUAL_BUDGET_SYNC_ID` | The budget to back up. In Actual, open **Settings**, click **Show advanced settings**, and copy the **Sync ID**. |
 
-`BACKUP_KEEP_DAYS` - by default, this tool never deletes old backups. To change this behaviour, set this to the number of days to keep backups for. e.g. for a weeks worth of backups, set `BACKUP_KEEP_DAYS: 7`
+Settings you will probably want too:
 
-`ACTUAL_BUDGET_SYNC_ID_1` If you have multiple budgets to backup, you can add more sync IDs by using the `ACTUAL_BUDGET_SYNC_ID_1: ''` field to hold the second ID, and you can add as many of those as you want by incrementing the number `ACTUAL_BUDGET_SYNC_ID_2`, `ACTUAL_BUDGET_SYNC_ID_3`… etc.
+| Setting | Default | |
+| --- | --- | --- |
+| `TIMEZONE` | `UTC` | Your timezone, e.g. `Europe/Lisbon`. Sets when `CRON` runs and the date in file names. |
+| `CRON` | `0 0 * * *` | When to back up, as a [cron expression](https://crontab.guru/). The default is daily at midnight. |
+| `BACKUP_KEEP_DAYS` | `0` | Delete backups older than this many days. `0` keeps them all. |
 
-## Testing
+Values in `compose.yaml` are in single quotes. If a value contains a single quote, write it twice: `'it''s'`. All the settings are in [configuration](configuration.md).
 
-Now all the config is set, you should run a test backup to confirm all the config is correct. To do that, run the following command from the folder where you have the docker compose file:
+<br>
+
+## 3. Test it
+
+From the folder with `compose.yaml`, run one backup:
 
 ```shell
 docker compose run --rm backup backup
 ```
 
-If everything is ok, this will run for a few seconds, and will finish with `backup finished successfully`, after a line similar to `upload backup file to storage system [backup/backup.<ID>.20250208.zip -> ActualBudgetBackup:/ActualBudgetBackup]`. If you check your storage system, you should now have a file called `backup.<ID>.20250208.zip` stored within there. If anything went wrong, the command exits with a non-zero status and the log shows which budget or upload failed; go back and check all your env variables. If you can't work out what's gone wrong, file an issue in this repo.
+It takes a few seconds and ends with:
 
-## Starting the automatic backup
+```
+upload backup file to storage system [backup/backup.<sync id>.20261022.zip -> ActualBudgetBackup:/ActualBudgetBackup]
+backup finished successfully
+```
 
-If your test succeeded, you can now start docker running permanently. To do this, issue the following command:
+The file `backup.<sync id>.20261022.zip` is now in your storage. If something failed, the log says what, and [troubleshooting](troubleshooting.md) lists the usual causes.
+
+<br>
+
+## 4. Start the schedule
 
 ```shell
 docker compose up -d
 ```
 
-This will start the container running, and it will automatically start every time docker does. The backup will be performed at whatever time you specified for `CRON`, or at midnight UTC if you didn't specify.
+The container keeps running and starts a backup at the `CRON` time. Nothing runs when it starts, so the first backup happens at the next scheduled time. Check it later with `docker compose logs`.
+
+<br>
+
+## Next steps
+
+- [Get a message](notifications.md) when a backup fails
+- [Restore a backup](restore.md) once, to know it works
+- Back up [several budgets](multiple-sync-ids.md) or to [several destinations](multiple-remote-destinations.md)

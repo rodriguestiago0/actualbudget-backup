@@ -49,7 +49,7 @@ function check_rclone_connection() {
     # (listremotes honours --config, RCLONE_CONFIG and remotes defined via env)
     if ! rclone ${RCLONE_GLOBAL_FLAG} listremotes 2> /dev/null | grep -qxF "${RCLONE_REMOTE_NAME}:"; then
         color red "rclone configuration information not found $(color yellow "[${RCLONE_REMOTE_NAME}]")"
-        color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup#configure-rclone-%EF%B8%8F-must-read-%EF%B8%8F"
+        color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup/blob/main/docs/getting-started.md#1-set-up-rclone"
         exit 1
     fi
 

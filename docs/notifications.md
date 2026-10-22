@@ -60,7 +60,7 @@ environment:
 
 ```yml
 services:
-  actualbudget_backup:
+  backup:
     environment:
       NOTIFICATION_URLS_FILE: '/run/secrets/notification-urls'
     secrets:
