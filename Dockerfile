@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548 AS base
+FROM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS base
 
 # Install the Actual CLI (pinned in package-lock.json). Build tools are only
 # needed here, for platforms without a prebuilt better-sqlite3 binary.
@@ -16,7 +16,7 @@ RUN npm ci --omit=dev --no-audit --no-fund \
 
 # Shoutrrr CLI for notifications (https://github.com/nicholas-fedor/shoutrrr).
 # Runs on the build platform; it only downloads and verifies the binary.
-FROM --platform=$BUILDPLATFORM rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548 AS shoutrrr
+FROM --platform=$BUILDPLATFORM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS shoutrrr
 
 ARG SHOUTRRR_VERSION="0.22.0"
 ARG TARGETARCH
