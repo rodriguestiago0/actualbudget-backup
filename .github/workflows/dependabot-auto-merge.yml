@@ -1,0 +1,34 @@
+name: Dependabot Auto-Merge
+
+# Approve and auto-merge Dependabot's @actual-app/cli updates once CI
+# passes; every other update still needs a review.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # RELEASE_TOKEN (a PAT of the code owner, stored as a Dependabot
+      # secret) is used instead of GITHUB_TOKEN: its approval counts as the
+      # code owner review, and its merge to main triggers the release.
+      - name: Approve and enable auto-merge
+        if: steps.metadata.outputs.dependency-names == '@actual-app/cli'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --squash --auto "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
