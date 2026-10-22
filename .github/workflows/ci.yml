@@ -34,6 +34,13 @@ jobs:
       - name: Run unit tests
         run: bats test/*.bats
 
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh test/e2e/run.sh
+
+      # also shellchecks the run: blocks of the workflows
+      - name: Actionlint
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
+
   build:
     runs-on: ubuntu-latest
     concurrency:

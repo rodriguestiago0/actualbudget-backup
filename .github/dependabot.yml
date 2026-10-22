@@ -11,7 +11,11 @@ updates:
     schedule:
       interval: weekly
 
+  # one PR a week for all the actions
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

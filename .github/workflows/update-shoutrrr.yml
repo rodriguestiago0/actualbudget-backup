@@ -1,9 +1,10 @@
 name: Update Shoutrrr
 
 # Dependabot cannot see the Shoutrrr version pinned in the Dockerfile, so
-# check for new releases weekly. Actions may not open pull requests in
-# this repository, so push a branch and open an issue linking to it; a
-# pull request opened from that link runs CI as usual.
+# check for new releases weekly, push a branch and open a pull request with
+# RELEASE_TOKEN (a personal token, so the pull request runs CI). Without
+# that secret, open an issue linking to the branch instead, since
+# GITHUB_TOKEN may not open pull requests in this repository.
 on:
   schedule:
     - cron: '0 6 * * 1'
@@ -73,10 +74,11 @@ jobs:
           push: false
           platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
 
-      - name: Push a branch and open an issue
+      - name: Push a branch and open a pull request
         if: steps.check.outputs.version != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
           CURRENT: ${{ steps.check.outputs.current }}
           VERSION: ${{ steps.check.outputs.version }}
           BRANCH: ${{ steps.check.outputs.branch }}
@@ -88,10 +90,15 @@ jobs:
           git commit -am "Update Shoutrrr to v${VERSION}"
           git push origin "$BRANCH"
 
-          gh issue create \
-            --title "Update Shoutrrr to v${VERSION}" \
-            --body "Shoutrrr [v${VERSION}](https://github.com/nicholas-fedor/shoutrrr/releases/tag/v${VERSION}) is out (currently v${CURRENT}).
+          TITLE="Update Shoutrrr to v${VERSION}"
+          BODY="Shoutrrr [v${VERSION}](https://github.com/nicholas-fedor/shoutrrr/releases/tag/v${VERSION}) is out (currently v${CURRENT}).
 
-          The branch \`${BRANCH}\` bumps \`SHOUTRRR_VERSION\` in the Dockerfile. Its binaries for all published platforms were downloaded and match the release checksums.
+          This bumps \`SHOUTRRR_VERSION\` in the Dockerfile. Its binaries for all published platforms were downloaded and match the release checksums."
+
+          if [ "$HAS_RELEASE_TOKEN" = true ]; then
+            gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "${BODY}
 
           **[Open a pull request](https://github.com/${REPO}/compare/main...${BRANCH}?expand=1)** to run CI and merge it."
+          fi
