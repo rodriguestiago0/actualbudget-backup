@@ -1,6 +1,6 @@
 # Restore a backup
 
-Each backup is an archive named `backup.<sync id>.<date>.<zip|7z|tar>` that contains the budget's `db.sqlite` and `metadata.json`. Actual imports it as a zip file.
+Each backup is an archive named `backup.<sync id>.<date>.<zip|7z|tar>` with the budget's `db.sqlite` and `metadata.json`, the same files as an export from Actual. To restore it, start a fresh Actual and import the archive, as described in Actual's [restore documentation](https://actualbudget.org/docs/backup-restore/restore).
 
 <br>
 
@@ -21,46 +21,61 @@ docker run --rm \
   rclone copy ActualBudgetBackup:/ActualBudgetBackup/backup.<sync id>.<date>.zip /restore/
 ```
 
-<br>
+Without Docker, run the same `rclone` commands directly.
 
-## 2. Get an importable zip
-
-A `zip` backup **without** `ZIP_PASSWORD` can be imported as is; skip to step 3.
-
-A backup with a password, a `7z` backup or a `tar` backup (`ZIP_ENABLE: 'FALSE'`) has to be repacked as a plain zip first. The image contains `7z`, so nothing else needs to be installed. Set `FILE` to your backup and `PASSWORD` to your `ZIP_PASSWORD` (leave it empty if there is none):
+A `zip` backup **without** `ZIP_PASSWORD` imports as is. A backup with a password, a `7z` backup or a `tar` backup has to be repacked as a plain zip first:
 
 ```shell
-FILE='backup.<sync id>.<date>.7z'
-PASSWORD='your-zip-password'
-
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
-  -e FILE="$FILE" -e PASSWORD="$PASSWORD" \
-  --entrypoint sh rodriguestiago0/actualbudget-backup:latest -c \
-  '7z x -y -p"$PASSWORD" -orestored "$FILE" && cd restored && 7z a -tzip ../restored.zip db.sqlite metadata.json'
+7z x -p'your-zip-password' -orestored 'backup.<sync id>.<date>.7z'
+(cd restored && 7z a -tzip ../restored.zip db.sqlite metadata.json)
 ```
 
-This creates `restored.zip`, next to a `restored` folder you can delete afterwards.
+No `7z` on your machine? The image has it: open a shell in the current directory with the command below, then run the two commands above.
+
+```shell
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+  --entrypoint bash rodriguestiago0/actualbudget-backup:latest
+```
 
 <br>
 
-## 3. Import it in Actual
+## 2. Start a fresh Actual
 
-1. In Actual, click the budget name in the top-left corner and choose **Switch file**.
-2. Click **Import file**, then choose **Actual**.
-3. Select the zip file and import it.
+Start a new, empty Actual server with its own data volume, so your existing server is not touched:
 
-The budget is imported as a new file next to your existing ones, so nothing is overwritten. Check it, then rename it or delete the old copy. See Actual's [restore documentation](https://actualbudget.org/docs/backup-restore/restore) for more details.
+```shell
+docker run -d --name actual-restore -p 5007:5006 \
+  -v actual-restore-data:/data \
+  actualbudget/actual-server:latest
+```
+
+Open http://localhost:5007 and set a password. See Actual's [install guide](https://actualbudget.org/docs/install/) for other ways to run it.
+
+Use the `latest` Actual: a backup can only be opened by an Actual at least as new as the Actual CLI that made it, see [version compatibility](#version-compatibility).
+
+<br>
+
+## 3. Import the backup
+
+Follow Actual's [restore documentation](https://actualbudget.org/docs/backup-restore/restore): on the **Switch file** page, click **Import file**, choose **Actual** and select the zip.
 
 If the budget used end-to-end encryption, the backup contains it decrypted. Turn encryption on again in the imported budget's settings.
+
+Once you have checked the budget, keep using this server, or export the budget from it (**Settings > Export data**) and import that into your main Actual. When you are done with it:
+
+```shell
+docker rm -f actual-restore
+docker volume rm actual-restore-data
+```
 
 <br>
 
 ## Version compatibility
 
-The Actual CLI in the image upgrades the budget to its own version while downloading it. **A backup can only be imported into an Actual version at least as new as the CLI of the image that made it.** Each backup's log shows both versions. To check the CLI version of an image:
+The Actual CLI in the image upgrades the budget to its own version while downloading it, so **a backup can only be imported into an Actual at least as new as that CLI**. Each backup's log shows both versions. To check the CLI version of an image:
 
 ```shell
 docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:<tag> --version
 ```
 
-If Actual says *"This budget cannot be loaded with this version of the app"*, upgrade Actual to at least that version and import again.
+If Actual says *"This budget cannot be loaded with this version of the app"*, use a newer Actual and import again.
