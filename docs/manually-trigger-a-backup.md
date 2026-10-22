@@ -1,32 +1,26 @@
-# Manually trigger a backup
+# Run a backup now
 
-Sometimes, it's necessary to manually trigger backup actions.
+Pass `backup` as the command to run one backup and exit, without waiting for the schedule. Use it to test your settings, or to back up before upgrading Actual.
 
-This can be useful when other programs are used to consistently schedule tasks or to verify that environment variables are properly configured.
-
-## Usage
-
-Previously, performing an immediate backup required overwriting the entrypoint of the image. However, with the new setup, you can perform a backup directly with a parameterless command.
-
-If you have already configured your docker compose file correctly, you can trigger this with the following command (You will need to `docker compose down` the running container first if it is running):
+From the folder with `compose.yaml`:
 
 ```shell
 docker compose run --rm backup backup
 ```
 
-If you have not configured Docker compose yet, you can run the image manually, and specify the env variables on the cli as follows
+This starts a separate container, so the scheduled one can keep running.
+
+Without Compose, pass the same settings with `-e`:
 
 ```shell
-docker run \
-  --rm \
-  --name actualbudget-backup \
+docker run --rm \
   --mount type=volume,source=actualbudget-rclone-data,target=/config/ \
-  -e ... \
+  -e ACTUAL_BUDGET_URL='https://actual.example.com' \
+  -e ACTUAL_BUDGET_PASSWORD='your-password' \
+  -e ACTUAL_BUDGET_SYNC_ID='your-sync-id' \
   rodriguestiago0/actualbudget-backup:latest backup
 ```
 
-You also need to mount the rclone config file and set the environment variables.
+`CRON` is not used in this mode.
 
-The only difference is that the environment variable `CRON` does not work because it does not start the CRON program, but exits the container after the backup is done.
-
-The container exits with status `0` when every budget was backed up and uploaded, and `1` otherwise, so schedulers such as systemd or Kubernetes CronJobs can detect failed backups. Budgets that downloaded successfully are still uploaded even if another budget failed, and old backups are not deleted (`BACKUP_KEEP_DAYS`) after a failed run.
+The container exits with status `0` when every budget was backed up and uploaded, and `1` otherwise, so other schedulers, such as [systemd](systemd.md) or a Kubernetes CronJob, can detect failed backups. Budgets that downloaded are uploaded even if another one failed, and old backups are not deleted after a failed run.
