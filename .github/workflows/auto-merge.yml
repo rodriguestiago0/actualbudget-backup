@@ -1,0 +1,26 @@
+name: Auto-Merge on Approval
+
+# When the repo owner approves a PR, enable auto-merge so it squash-merges
+# once the required checks are green.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == github.repository_owner
+
+    steps:
+      # RELEASE_TOKEN is used instead of GITHUB_TOKEN so the resulting
+      # merge to main triggers the release workflow.
+      - name: Enable auto-merge
+        run: gh pr merge --squash --auto "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
