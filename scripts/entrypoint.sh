@@ -21,7 +21,8 @@ function switch_user() {
     fi
 
     local RUN_UID="${PUID:-0}"
-    local RUN_GID="${PGID:-0}"
+    # with only PUID set, use the same number for the group rather than root's
+    local RUN_GID="${PGID:-${PUID:-0}}"
 
     if [[ ! "${RUN_UID}" =~ ^[0-9]+$ || ! "${RUN_GID}" =~ ^[0-9]+$ ]]; then
         color red "PUID and PGID must be numbers, e.g. PUID=1000 and PGID=1000"
@@ -50,9 +51,8 @@ function configure_timezone() {
 }
 
 function configure_cron() {
-    if ! grep -q 'backup.sh' "${CRON_CONFIG_FILE}" 2> /dev/null; then
-        echo "${CRON} bash /app/backup.sh" >> "${CRON_CONFIG_FILE}"
-    fi
+    # rewritten on every start, so a changed CRON applies after a restart
+    echo "${CRON} bash /app/backup.sh" > "${CRON_CONFIG_FILE}"
 }
 
 init_env

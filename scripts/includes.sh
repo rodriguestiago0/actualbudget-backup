@@ -45,13 +45,21 @@ function check_rclone_connection() {
         exit 1
     fi
 
-    # check configuration exist
+    # check configuration exist for every remote
     # (listremotes honours --config, RCLONE_CONFIG and remotes defined via env)
-    if ! rclone ${RCLONE_GLOBAL_FLAG} listremotes 2> /dev/null | grep -qxF "${RCLONE_REMOTE_NAME}:"; then
-        color red "rclone configuration information not found $(color yellow "[${RCLONE_REMOTE_NAME}]")"
-        color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup/blob/main/docs/getting-started.md#1-set-up-rclone"
-        exit 1
-    fi
+    local REMOTES
+    local REMOTE_NAME
+    REMOTES="$(rclone ${RCLONE_GLOBAL_FLAG} listremotes 2> /dev/null)"
+
+    for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
+    do
+        REMOTE_NAME="${RCLONE_REMOTE_X%%:*}"
+        if ! grep -qxF "${REMOTE_NAME}:" <<< "${REMOTES}"; then
+            color red "rclone configuration information not found $(color yellow "[${REMOTE_NAME}]")"
+            color blue "Please configure rclone first, check https://github.com/rodriguestiago0/actualbudget-backup/blob/main/docs/getting-started.md#1-set-up-rclone"
+            exit 1
+        fi
+    done
 
     # check connection
     local ERROR_COUNT=0
@@ -361,15 +369,24 @@ function get_env() {
     local VAR_DOTENV="DOTENV_${VAR}"
     local VAR_DOTENV_FILE="DOTENV_${VAR_FILE}"
     local VALUE=""
+    local SECRET_FILE=""
 
     if [[ -n "${!VAR:-}" ]]; then
         VALUE="${!VAR}"
     elif [[ -n "${!VAR_FILE:-}" ]]; then
-        VALUE="$(cat "${!VAR_FILE}")"
+        SECRET_FILE="${!VAR_FILE}"
     elif [[ -n "${!VAR_DOTENV_FILE:-}" ]]; then
-        VALUE="$(cat "${!VAR_DOTENV_FILE}")"
+        SECRET_FILE="${!VAR_DOTENV_FILE}"
     elif [[ -n "${!VAR_DOTENV:-}" ]]; then
         VALUE="${!VAR_DOTENV}"
+    fi
+
+    if [[ -n "${SECRET_FILE}" ]]; then
+        if [[ ! -f "${SECRET_FILE}" || ! -r "${SECRET_FILE}" ]]; then
+            color red "${VAR_FILE}: cannot read \"${SECRET_FILE}\", check that it exists and that user $(id -u):$(id -g) can read it"
+            exit 1
+        fi
+        VALUE="$(cat "${SECRET_FILE}")"
     fi
 
     export "${VAR}=${VALUE}"
@@ -536,6 +553,10 @@ function init_env() {
     # BACKUP_KEEP_DAYS
     get_env BACKUP_KEEP_DAYS
     BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-"0"}"
+    if [[ ! "${BACKUP_KEEP_DAYS}" =~ ^[0-9]+$ ]]; then
+        color red "BACKUP_KEEP_DAYS must be a number of days, e.g. 30, or 0 to keep all backups"
+        exit 1
+    fi
 
     # ZIP_ENABLE
     get_env ZIP_ENABLE

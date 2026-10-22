@@ -112,3 +112,32 @@ ENV
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"ACTUAL_BUDGET_URL is not set"* ]]
 }
+
+@test "get_env fails when the _FILE secret is missing" {
+    unset TEST_MISSING
+    export TEST_MISSING_FILE="${BATS_TEST_TMPDIR}/does_not_exist"
+    run get_env TEST_MISSING
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"TEST_MISSING_FILE: cannot read"* ]]
+}
+
+@test "init_env fails with a non-numeric BACKUP_KEEP_DAYS" {
+    export BACKUP_KEEP_DAYS="7d"
+    run init_env
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"BACKUP_KEEP_DAYS must be a number"* ]]
+}
+
+@test "check_rclone_connection fails when any remote is not configured" {
+    rclone() {
+        case "$1" in
+            listremotes) printf 'first:\n' ;;
+            *) return 0 ;;
+        esac
+    }
+    RCLONE_GLOBAL_FLAG=""
+    RCLONE_REMOTE_LIST=("first:/backups" "second:/backups")
+    run check_rclone_connection all
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"[second]"* ]]
+}

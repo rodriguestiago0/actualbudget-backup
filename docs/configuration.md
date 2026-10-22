@@ -80,7 +80,7 @@ Each budget is saved as its own archive, with `db.sqlite` and `metadata.json` at
 
 **`ZIP_TYPE`**: `zip` (default) or `7z`. A `zip` without a password can be imported into Actual as is. `7z` compresses better and, with a password, also hides the file names.
 
-**`ZIP_PASSWORD`**: encrypts the archive. Keep it somewhere other than the backups: without it, they can't be restored. An encrypted backup has to be unpacked before Actual can import it, see [restore](restore.md).
+**`ZIP_PASSWORD`**: encrypts the archive with AES-256. Keep it somewhere other than the backups: without it, they can't be restored. An encrypted backup has to be unpacked before Actual can import it, see [restore](restore.md). Windows Explorer and some other built-in unzip tools can't open AES-encrypted zips; use [7-Zip](https://www.7-zip.org/) instead.
 
 **`ZIP_ENABLE`**: `FALSE` saves an uncompressed `tar` instead of an archive. `ZIP_TYPE` and `ZIP_PASSWORD` are then ignored.
 
@@ -98,7 +98,7 @@ Backups are named `backup.<sync id>.<date>.<zip|7z|tar>`.
 
 By default the container runs as root, so the files it writes, such as the backups in a local or NAS folder and `rclone.conf` when rclone refreshes a token, belong to root.
 
-**`PUID`**, **`PGID`**: the user and group IDs to run as instead, e.g. `PUID: '1000'` and `PGID: '1000'` (`id -u` and `id -g` on the host show yours; on Unraid they are `99` and `100`). At startup, the container gives `/config` to this user and group, then runs the schedule and the backups as them.
+**`PUID`**, **`PGID`**: the user and group IDs to run as instead, e.g. `PUID: '1000'` and `PGID: '1000'` (`id -u` and `id -g` on the host show yours; on Unraid they are `99` and `100`). At startup, the container gives `/config` to this user and group, then runs the schedule and the backups as them. With only `PUID` set, the group ID is the same number.
 
 Compose's `user: '1000:1000'` works too. The container then never runs as root, so `/config` must already belong to that user.
 
