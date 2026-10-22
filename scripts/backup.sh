@@ -38,15 +38,18 @@ function archive_budget() {
         return
     fi
 
-    if [[ -n "${ZIP_PASSWORD}" ]]; then
-        PASSWORD_FLAG=("-p${ZIP_PASSWORD}")
+    # -p without a value reads the password from stdin, so it doesn't show
+    # up in `ps`. Zip uses AES-256, 7z's default ZipCrypto is easily broken.
+    if [[ -n "${ZIP_PASSWORD}" && "${ZIP_TYPE}" == "7z" ]]; then
+        PASSWORD_FLAG=("-p" "-mhe=on")
+    elif [[ -n "${ZIP_PASSWORD}" ]]; then
+        PASSWORD_FLAG=("-p" "-mem=AES256")
     fi
 
     if [[ "${ZIP_TYPE}" == "7z" ]]; then
-        [[ -n "${ZIP_PASSWORD}" ]] && PASSWORD_FLAG+=("-mhe=on")
-        (cd "${SOURCE_DIR}" && 7z a -bso0 -bsp0 -t7z -m0=lzma2 -mx=9 "${PASSWORD_FLAG[@]}" "${ARCHIVE}" "${FILES[@]}")
+        (cd "${SOURCE_DIR}" && printf '%s\n' "${ZIP_PASSWORD}" | 7z a -bso0 -bsp0 -t7z -m0=lzma2 -mx=9 "${PASSWORD_FLAG[@]}" "${ARCHIVE}" "${FILES[@]}")
     else
-        (cd "${SOURCE_DIR}" && 7z a -bso0 -bsp0 -tzip -mx=9 "${PASSWORD_FLAG[@]}" "${ARCHIVE}" "${FILES[@]}")
+        (cd "${SOURCE_DIR}" && printf '%s\n' "${ZIP_PASSWORD}" | 7z a -bso0 -bsp0 -tzip -mx=9 "${PASSWORD_FLAG[@]}" "${ARCHIVE}" "${FILES[@]}")
     fi
 }
 

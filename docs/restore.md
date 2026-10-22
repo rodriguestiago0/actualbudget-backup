@@ -23,7 +23,7 @@ docker run --rm \
 
 Without Docker, run the same `rclone` commands directly.
 
-A `zip` backup **without** `ZIP_PASSWORD` imports as is. A backup with a password, a `7z` backup or a `tar` backup has to be repacked as a plain zip first:
+A `zip` backup **without** `ZIP_PASSWORD` imports as is. A backup with a password, a `7z` backup or a `tar` backup has to be repacked as a plain zip first. Password-protected zips use AES-256, which Windows Explorer can't open, so use `7z`:
 
 ```shell
 7z x -p'your-zip-password' -orestored 'backup.<sync id>.<date>.7z'
