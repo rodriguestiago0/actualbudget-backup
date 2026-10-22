@@ -1,14 +1,10 @@
 version: 2
 updates:
-  # Actual CLI (keep it in step with your Actual server version). Its
-  # updates merge on their own, so wait a week after each release: a broken
-  # one is usually fixed by then, and users have time to upgrade Actual.
+  # Actual CLI (keep it in step with your Actual server version)
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-    cooldown:
-      default-days: 7
 
   - package-ecosystem: docker
     directory: /
