@@ -295,22 +295,53 @@ function init_env_notification() {
 }
 
 ########################################
-# Export variables from .env file.
+# Export variables from .env file. The file is parsed, never run, so values
+# are taken literally: 'single' and "double" quotes are removed, and in an
+# unquoted value a ' #' starts a comment. In double quotes, \" \\ \$ and \`
+# are unescaped, as the shell did before.
 # Arguments:
 #     None
 # Outputs:
 #     variables with prefix 'DOTENV_'
-# Reference:
-#     https://gist.github.com/judy2k/7656bfe3b322d669ef75364a46327836#gistcomment-3632918
 ########################################
 function export_env_file() {
-    if [[ -f "${ENV_FILE}" ]]; then
-        color blue "find \"${ENV_FILE}\" file and export variables"
-        set -a
-        # shellcheck source=/dev/null
-        source <(sed -e '/^#/d;/^\s*$/d' -e 's/\(\w*\)[ \t]*=[ \t]*\(.*\)/DOTENV_\1=\2/' "${ENV_FILE}")
-        set +a
+    if [[ ! -f "${ENV_FILE}" ]]; then
+        return
     fi
+
+    color blue "find \"${ENV_FILE}\" file and export variables"
+
+    local LINE
+    local KEY
+    local VALUE
+    local LINE_REGEX='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$'
+    local SINGLE_QUOTED_REGEX="^'(.*)'[[:space:]]*(#.*)?$"
+    local DOUBLE_QUOTED_REGEX='^"(.*)"[[:space:]]*(#.*)?$'
+
+    while IFS= read -r LINE || [[ -n "${LINE}" ]]; do
+        LINE="${LINE%$'\r'}"
+        if [[ ! "${LINE}" =~ ${LINE_REGEX} ]]; then
+            continue
+        fi
+        KEY="${BASH_REMATCH[2]}"
+        VALUE="${BASH_REMATCH[3]}"
+
+        if [[ "${VALUE}" =~ ${SINGLE_QUOTED_REGEX} ]]; then
+            VALUE="${BASH_REMATCH[1]}"
+        elif [[ "${VALUE}" =~ ${DOUBLE_QUOTED_REGEX} ]]; then
+            VALUE="${BASH_REMATCH[1]}"
+            VALUE="${VALUE//\\\\/$'\x01'}"
+            VALUE="${VALUE//\\\"/\"}"
+            VALUE="${VALUE//\\\$/\$}"
+            VALUE="${VALUE//\\\`/\`}"
+            VALUE="${VALUE//$'\x01'/\\}"
+        else
+            VALUE="${VALUE%%[[:space:]]#*}"
+            VALUE="${VALUE%"${VALUE##*[![:space:]]}"}"
+        fi
+
+        export "DOTENV_${KEY}=${VALUE}"
+    done < "${ENV_FILE}"
 }
 
 ########################################
@@ -407,32 +438,37 @@ function init_actual_sync_list() {
 function init_actual_e2e_list(){
     ACTUAL_BUDGET_E2E_PASSWORD_LIST=()
 
-    local i=0
+    local i
+    local SET_COUNT=0
     local ACTUAL_BUDGET_E2E_PASSWORD_X_REFER
 
-    # for multiple
-    while true; do
+    # one password per sync id, empty when that budget is not encrypted
+    for i in "${!ACTUAL_BUDGET_SYNC_ID_LIST[@]}"
+    do
         ACTUAL_BUDGET_E2E_PASSWORD_X_REFER="ACTUAL_BUDGET_E2E_PASSWORD_${i}"
         get_env "${ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}"
 
-        if [[ -z "${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}" ]]; then
-            break
-        fi
-
         ACTUAL_BUDGET_E2E_PASSWORD_LIST+=("${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}")
 
-        ((i++))
+        if [[ -n "${!ACTUAL_BUDGET_E2E_PASSWORD_X_REFER}" ]]; then
+            SET_COUNT=$((SET_COUNT + 1))
+        fi
     done
 
-    if [[ ${#ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} -gt 0 ]]; then
-        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: ${#ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]} set"
+    if [[ ${SET_COUNT} -gt 0 ]]; then
+        color yellow "ACTUAL_BUDGET_E2E_PASSWORD: ${SET_COUNT} set"
     fi
 }
 
 function init_actual_env(){
     # ACTUAL BUDGET
     get_env ACTUAL_BUDGET_URL
-    ACTUAL_BUDGET_URL="${ACTUAL_BUDGET_URL:-"https://localhost:5006"}"
+
+    if [[ -z "${ACTUAL_BUDGET_URL}" ]]; then
+        color red "ACTUAL_BUDGET_URL is not set, e.g. https://actual.example.com"
+        exit 1
+    fi
+
     ACTUAL_BUDGET_URL="${ACTUAL_BUDGET_URL%/}"
     color yellow "ACTUAL_BUDGET_URL: ${ACTUAL_BUDGET_URL}"
 

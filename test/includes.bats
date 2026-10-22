@@ -69,3 +69,46 @@ setup() {
     [[ "$result" == *"ignoring invalid bad URL"* ]]
     [[ "$result" == *"generic://a ntfy://c" ]]
 }
+
+@test "export_env_file reads values literally, without running them" {
+    ENV_FILE="${BATS_TEST_TMPDIR}/.env"
+    cat > "${ENV_FILE}" <<'ENV'
+# a comment
+PLAIN=abc def # trailing comment
+SINGLE='pa$$ "word" #1'
+DOUBLE="it's \"quoted\" \$HOME \\ ok"
+export EXPORTED="x"
+CMD=$(touch ${BATS_TEST_TMPDIR}/ran)
+CRLF=value
+EMPTY=
+ENV
+    printf 'CRLF2=dos\r\n' >> "${ENV_FILE}"
+    export_env_file > /dev/null
+    [[ "${DOTENV_PLAIN}" == "abc def" ]]
+    [[ "${DOTENV_SINGLE}" == 'pa$$ "word" #1' ]]
+    [[ "${DOTENV_DOUBLE}" == 'it'\''s "quoted" $HOME \ ok' ]]
+    [[ "${DOTENV_EXPORTED}" == "x" ]]
+    [[ "${DOTENV_CMD}" == '$(touch ${BATS_TEST_TMPDIR}/ran)' ]]
+    [[ ! -e "${BATS_TEST_TMPDIR}/ran" ]]
+    [[ "${DOTENV_CRLF2}" == "dos" ]]
+    [[ -z "${DOTENV_EMPTY}" ]]
+}
+
+@test "e2e passwords follow their sync id, with gaps" {
+    ACTUAL_BUDGET_SYNC_ID_LIST=("plain" "encrypted" "plain-2")
+    ACTUAL_BUDGET_E2E_PASSWORD_0=""
+    export ACTUAL_BUDGET_E2E_PASSWORD_1="secret"
+    init_actual_e2e_list > /dev/null
+    [[ "${#ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}" -eq 3 ]]
+    [[ -z "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[0]}" ]]
+    [[ "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[1]}" == "secret" ]]
+    [[ -z "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[2]}" ]]
+}
+
+@test "init_actual_env fails without ACTUAL_BUDGET_URL" {
+    unset ACTUAL_BUDGET_URL
+    export ACTUAL_BUDGET_SYNC_ID="id"
+    run init_actual_env
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ACTUAL_BUDGET_URL is not set"* ]]
+}

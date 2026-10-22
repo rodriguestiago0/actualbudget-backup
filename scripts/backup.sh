@@ -170,8 +170,10 @@ function clear_history() {
         do
             color blue "delete ${BACKUP_KEEP_DAYS} days ago backup files $(color yellow "[${RCLONE_REMOTE_X}]")"
 
+            # only this tool's backup files, so other files and folders in
+            # the remote folder are never deleted
             # shellcheck disable=SC2086
-            mapfile -t RCLONE_DELETE_LIST < <(rclone ${RCLONE_GLOBAL_FLAG} lsf "${RCLONE_REMOTE_X}" --min-age "${BACKUP_KEEP_DAYS}d")
+            mapfile -t RCLONE_DELETE_LIST < <(rclone ${RCLONE_GLOBAL_FLAG} lsf "${RCLONE_REMOTE_X}" --files-only --include "backup.*" --min-age "${BACKUP_KEEP_DAYS}d")
 
             for RCLONE_DELETE_FILE in "${RCLONE_DELETE_LIST[@]}"
             do
