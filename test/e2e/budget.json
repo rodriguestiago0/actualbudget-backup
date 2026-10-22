@@ -1,0 +1,35 @@
+{
+  "name": "E2E Test",
+  "categoryGroups": [
+    { "name": "Bills", "categories": ["Rent", "Power"] },
+    { "name": "Everyday", "categories": ["Groceries", "Café ☕"] }
+  ],
+  "accounts": [
+    {
+      "name": "Checking",
+      "offbudget": false,
+      "transactions": [
+        { "date": "2026-01-01", "amount": 250000, "payee": "Employer", "notes": "January salary" },
+        { "date": "2026-01-03", "amount": -120000, "payee": "Landlord", "category": "Rent" },
+        { "date": "2026-01-10", "amount": -6543, "payee": "Power Co", "category": "Power", "notes": "bill #42" },
+        { "date": "2026-01-12", "amount": -4321, "payee": "Supermarket", "category": "Groceries" },
+        { "date": "2026-01-15", "amount": -350, "payee": "Café Lisboa", "category": "Café ☕", "notes": "pastel de nata, \"double\" espresso" },
+        { "date": "2026-02-01", "amount": 250000, "payee": "Employer", "notes": "February salary" },
+        { "date": "2026-02-03", "amount": -120000, "payee": "Landlord", "category": "Rent" }
+      ]
+    },
+    {
+      "name": "Savings",
+      "offbudget": true,
+      "transactions": [
+        { "date": "2026-01-02", "amount": 1000000, "payee": "Opening balance" },
+        { "date": "2026-01-31", "amount": 812, "payee": "Bank", "notes": "interest" }
+      ]
+    }
+  ],
+  "budget": [
+    { "month": "2026-01", "category": "Rent", "amount": 120000 },
+    { "month": "2026-01", "category": "Groceries", "amount": 30000 },
+    { "month": "2026-02", "category": "Rent", "amount": 120000 }
+  ]
+}

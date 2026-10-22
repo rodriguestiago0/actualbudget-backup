@@ -41,26 +41,29 @@ jobs:
       cancel-in-progress: true
     permissions:
       contents: read
+    # PRs only build amd64 to stay fast; main builds every published
+    # platform so a broken arch blocks the release. Dependabot PRs build
+    # them all too, since they can merge on their own.
+    env:
+      ALL_PLATFORMS: ${{ github.event_name == 'push' || github.event.pull_request.user.login == 'dependabot[bot]' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
       - name: Set up QEMU
-        if: github.event_name == 'push'
+        if: env.ALL_PLATFORMS == 'true'
         uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # PRs only build amd64 to stay fast; main builds every published
-      # platform so a broken arch blocks the release.
       - name: Build Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: false
-          platforms: ${{ github.event_name == 'push' && 'linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7' || 'linux/amd64' }}
+          platforms: ${{ env.ALL_PLATFORMS == 'true' && 'linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7' || 'linux/amd64' }}
           tags: actualbudget-backup:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -87,6 +90,11 @@ jobs:
             command -v supercronic su-exec curl > /dev/null
             for f in /app/*.sh; do bash -n "$f"; done
           '
+
+      # Backs up a known budget from a real Actual server and checks the
+      # backup holds the same budget
+      - name: End-to-end backup test
+        run: test/e2e/run.sh actualbudget-backup:ci
 
   # Releases everything merged since the last tag, not only this commit:
   # when a newer push cancels this run's build, the newer run releases it.
