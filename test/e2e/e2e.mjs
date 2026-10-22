@@ -1,9 +1,13 @@
 // Helpers for test/e2e/run.sh, run with the image's Node and @actual-app/api.
 //
-//   seed <fixture> <sync id file>        create the fixture budget on the server
-//   snapshot-server <sync id> <out>      dump the budget as the server has it
-//   snapshot-backup <budget dir> <out>   dump a budget unpacked from a backup
-//   compare <fixture> <server> <backup>  check both dumps match the fixture
+//   seed <fixture> <sync id file> <name> [e2e password]
+//       create the fixture budget on the server, encrypted with the password
+//   snapshot-server <sync id> <out> [e2e password]
+//       dump the budget as the server has it
+//   snapshot-backup <budget dir> <out>
+//       dump a budget unpacked from a backup
+//   compare <fixture> <server dump> <backup dump>
+//       check both dumps match each other and the fixture
 //
 // The server is read from ACTUAL_SERVER_URL and ACTUAL_PASSWORD.
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,19 +25,19 @@ const byName = (a, b) => a.name.localeCompare(b.name);
 
 async function withApi(config, func) {
   const dataDir = mkdtempSync(join(tmpdir(), 'e2e-'));
-  await api.init({ dataDir, ...config });
+  const { send } = await api.init({ dataDir, ...config });
   try {
-    return await func(dataDir);
+    return await func(dataDir, send);
   } finally {
     await api.shutdown();
   }
 }
 
-async function seed(fixturePath, syncIdPath) {
+async function seed(fixturePath, syncIdPath, name, e2ePassword) {
   const fixture = readJson(fixturePath);
 
-  await withApi(server, async () => {
-    await api.runImport(fixture.name, async () => {
+  await withApi(server, async (dataDir, send) => {
+    await api.runImport(name, async () => {
       const categoryIds = {};
       for (const group of fixture.categoryGroups) {
         const groupId = await api.createCategoryGroup({ name: group.name });
@@ -61,8 +65,19 @@ async function seed(fixturePath, syncIdPath) {
       }
     });
 
-    const budget = (await api.getBudgets()).find((b) => b.name === fixture.name && b.groupId);
-    if (!budget) throw new Error('the seeded budget was not uploaded to the server');
+    if (e2ePassword) {
+      // re-uploads the budget encrypted, under a new sync id
+      const local = (await api.getBudgets()).find((b) => b.name === name && b.id);
+      await api.loadBudget(local.id);
+      await send('key-make', { password: e2ePassword });
+    }
+
+    // the server's list, as opposed to the local copy
+    const budget = (await api.getBudgets()).find((b) => b.name === name && 'encryptKeyId' in b);
+    if (!budget) throw new Error(`budget "${name}" was not uploaded to the server`);
+    if (Boolean(e2ePassword) !== Boolean(budget.encryptKeyId)) {
+      throw new Error(`budget "${name}" encryption is ${budget.encryptKeyId ? 'on' : 'off'}`);
+    }
     writeFileSync(syncIdPath, budget.groupId);
   });
 }
@@ -109,9 +124,9 @@ async function snapshot() {
   return { accounts, categoryGroups, budget };
 }
 
-async function snapshotServer(syncId, outPath) {
+async function snapshotServer(syncId, outPath, e2ePassword) {
   await withApi(server, async () => {
-    await api.downloadBudget(syncId);
+    await api.downloadBudget(syncId, e2ePassword ? { password: e2ePassword } : undefined);
     writeFileSync(outPath, JSON.stringify(await snapshot(), null, 2));
   });
 }
