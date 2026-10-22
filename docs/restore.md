@@ -51,7 +51,7 @@ docker run -d --name actual-restore -p 5007:5006 \
 
 Open http://localhost:5007 and set a password. See Actual's [install guide](https://actualbudget.org/docs/install/) for other ways to run it.
 
-Use the `latest` Actual: a backup can only be opened by an Actual at least as new as the Actual CLI that made it, see [version compatibility](#version-compatibility).
+Use the `latest` Actual. The Actual you import into must be at least as new as the version that made the backup, and a fresh `latest` always is.
 
 <br>
 
@@ -68,14 +68,3 @@ docker rm -f actual-restore
 docker volume rm actual-restore-data
 ```
 
-<br>
-
-## Version compatibility
-
-The Actual CLI in the image upgrades the budget to its own version while downloading it, so **a backup can only be imported into an Actual at least as new as that CLI**. Each backup's log shows both versions. To check the CLI version of an image:
-
-```shell
-docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:<tag> --version
-```
-
-If Actual says *"This budget cannot be loaded with this version of the app"*, use a newer Actual and import again.
