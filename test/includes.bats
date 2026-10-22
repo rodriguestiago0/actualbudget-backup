@@ -141,3 +141,20 @@ ENV
     [[ "$status" -eq 1 ]]
     [[ "$output" == *"[second]"* ]]
 }
+
+@test "healthcheck is healthy before the first backup" {
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "no backup has run yet" ]]
+}
+
+@test "healthcheck follows the last backup" {
+    echo "ok: the last backup finished at today" > "${BATS_TEST_TMPDIR}/last-backup"
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 0 ]]
+
+    echo "failed: the last backup failed at today, check the logs" > "${BATS_TEST_TMPDIR}/last-backup"
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == "failed: the last backup failed at today, check the logs" ]]
+}

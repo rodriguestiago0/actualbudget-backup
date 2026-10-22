@@ -203,6 +203,14 @@ function on_exit() {
         rm -rf "${WORK_DIR}"
     fi
 
+    # for the health check; writable by all, so a backup run by root (e.g.
+    # `docker exec`) doesn't stop the PUID user from updating it
+    local RESULT="ok: the last backup finished at ${NOW_TEXT}"
+    if [[ ${STATUS} -ne 0 ]]; then
+        RESULT="failed: the last backup failed at ${NOW_TEXT}, check the logs"
+    fi
+    { echo "${RESULT}" > "${LAST_BACKUP_FILE}" && chmod a+rw "${LAST_BACKUP_FILE}"; } 2> /dev/null
+
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
     elif [[ "${FAILED_COUNT}" -gt 0 ]]; then

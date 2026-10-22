@@ -5,6 +5,8 @@
 
 ENV_FILE="${ENV_FILE:-"/.env"}"
 CRON_CONFIG_FILE="${HOME}/crontabs"
+# result of the last backup, for the Docker health check
+LAST_BACKUP_FILE="${HOME}/last-backup"
 
 # Outside the image (e.g. run by systemd), use the Actual CLI installed
 # with `npm ci` next to the scripts

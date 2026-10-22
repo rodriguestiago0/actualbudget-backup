@@ -59,4 +59,7 @@ COPY --from=cli /app/node_modules /app/node_modules
 COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
 COPY --chmod=755 scripts/*.sh /app/
 
+# unhealthy while the last backup failed, see scripts/healthcheck.sh
+HEALTHCHECK --interval=5m --timeout=10s CMD ["/app/healthcheck.sh"]
+
 ENTRYPOINT ["/app/entrypoint.sh"]

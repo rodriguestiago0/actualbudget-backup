@@ -1,5 +1,4 @@
 {
-  "name": "E2E Test",
   "categoryGroups": [
     { "name": "Bills", "categories": ["Rent", "Power"] },
     { "name": "Everyday", "categories": ["Groceries", "Café ☕"] }

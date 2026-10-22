@@ -90,6 +90,14 @@ The backup works, but your server can't import it until you upgrade Actual. A [f
 
 The default file name has only the date. Add the time to [`BACKUP_FILE_SUFFIX`](configuration.md#file-names).
 
+#### The container is `unhealthy`
+
+The last scheduled backup failed; its log says why. The container is healthy again once a backup succeeds. To see the result of the last backup:
+
+```shell
+docker inspect --format '{{json .State.Health.Log}}' <container>
+```
+
 #### `Permission denied` with `PUID`/`PGID` or `user:`
 
 The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. See [user](configuration.md#user).
