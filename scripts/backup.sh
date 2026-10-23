@@ -54,6 +54,61 @@ function archive_budget() {
 }
 
 ########################################
+# Check that a downloaded budget database is not corrupt, with the SQLite
+# module the Actual CLI uses.
+# Arguments:
+#     db.sqlite path
+# Returns:
+#     0 if it is fine or the check cannot run, 1 if it is corrupt
+########################################
+function check_database() {
+    local STATUS=0
+
+    # node_modules of the Actual CLI, next to its .bin
+    NODE_MODULES="$(dirname "$(dirname "$(command -v actual)")")" node -e '
+        let Database;
+        try {
+            Database = require("module").createRequire(process.env.NODE_MODULES + "/")("better-sqlite3");
+        } catch {
+            process.exit(3);
+        }
+        let result;
+        try {
+            const db = new Database(process.argv[1], { readonly: true, fileMustExist: true });
+            result = db.pragma("integrity_check", { simple: true });
+        } catch (error) {
+            result = error.message;
+        }
+        if (result !== "ok") {
+            console.error(result);
+            process.exit(1);
+        }
+    ' "$1" || STATUS=$?
+
+    if [[ ${STATUS} -eq 3 ]]; then
+        color yellow "skipping the database check, better-sqlite3 was not found next to the Actual CLI"
+        return 0
+    fi
+    return ${STATUS}
+}
+
+########################################
+# Check that an archive can be read back, with its password.
+# Arguments:
+#     archive path
+########################################
+function check_archive() {
+    if [[ "${ZIP_ENABLE}" == "FALSE" ]]; then
+        tar -tf "$1" > /dev/null
+        return
+    fi
+
+    # unlike `7z a`, `7z t -p` doesn't read the password from stdin; without
+    # -p it asks for it there when the archive is encrypted
+    printf '%s\n' "${ZIP_PASSWORD}" | 7z t -bso0 -bsp0 "$1"
+}
+
+########################################
 # Download one budget with the Actual CLI and archive it.
 # Arguments:
 #     sync id
@@ -85,12 +140,24 @@ function download_budget() {
         return 1
     fi
 
+    if ! check_database "${BUDGET_DIR}/db.sqlite"; then
+        color red "the downloaded budget is corrupt \"${SYNC_ID}\""
+        rm -rf "${DATA_DIR}"
+        return 1
+    fi
+
     archive_budget "${BUDGET_DIR}" "${BACKUP_FILE_ZIP}"
     local STATUS=$?
     rm -rf "${DATA_DIR}"
 
     if [[ ${STATUS} -ne 0 || ! -s "${BACKUP_FILE_ZIP}" ]]; then
         color red "archive failed \"${BACKUP_FILE_ZIP}\""
+        rm -f "${BACKUP_FILE_ZIP}"
+        return 1
+    fi
+
+    if ! check_archive "${BACKUP_FILE_ZIP}"; then
+        color red "the archive cannot be read back \"${BACKUP_FILE_ZIP}\""
         rm -f "${BACKUP_FILE_ZIP}"
         return 1
     fi
@@ -120,6 +187,7 @@ function check_server_version() {
     if version_lt "${SERVER_VERSION}" "${CLI_VERSION}"; then
         color yellow "WARNING: your Actual server (${SERVER_VERSION}) is older than the Actual CLI in this image (${CLI_VERSION})."
         color yellow "WARNING: these backups can only be imported into Actual ${CLI_VERSION} or newer. Upgrade Actual, or use an image release whose bundled CLI is not newer than your server."
+        send_notification warning "Your Actual server (${SERVER_VERSION}) is older than the Actual CLI in this image (${CLI_VERSION}): this backup can only be imported into Actual ${CLI_VERSION} or newer."
     fi
 }
 
@@ -204,12 +272,18 @@ function on_exit() {
     fi
 
     # for the health check; writable by all, so a backup run by root (e.g.
-    # `docker exec`) doesn't stop the PUID user from updating it
+    # `docker exec`) doesn't stop the PUID user from updating it. A failed
+    # backup keeps the time of the last successful one.
     local RESULT="ok: the last backup finished at ${NOW_TEXT}"
+    local LAST_SUCCESS
+    LAST_SUCCESS="$(sed -n 's/^last_success=//p' "${LAST_BACKUP_FILE}" 2> /dev/null)"
     if [[ ${STATUS} -ne 0 ]]; then
         RESULT="failed: the last backup failed at ${NOW_TEXT}, check the logs"
+    else
+        LAST_SUCCESS="$(date +%s)"
     fi
-    { echo "${RESULT}" > "${LAST_BACKUP_FILE}" && chmod a+rw "${LAST_BACKUP_FILE}"; } 2> /dev/null
+    { printf '%s\n' "${RESULT}" ${LAST_SUCCESS:+"last_success=${LAST_SUCCESS}"} > "${LAST_BACKUP_FILE}" &&
+        chmod a+rw "${LAST_BACKUP_FILE}"; } 2> /dev/null
 
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
@@ -223,6 +297,7 @@ function on_exit() {
 trap on_exit EXIT
 
 init_env
+unexport_secrets
 
 # after init_env, so the time is in the configured TIMEZONE
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"

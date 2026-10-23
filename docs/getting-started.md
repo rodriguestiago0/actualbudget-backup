@@ -79,11 +79,11 @@ docker compose run --rm backup backup
 It takes a few seconds and ends with:
 
 ```
-upload backup file to storage system [backup/backup.<sync id>.20261022.zip -> ActualBudgetBackup:/ActualBudgetBackup]
+upload backup file to storage system [backup/backup.<sync id>.20261022_000000.zip -> ActualBudgetBackup:/ActualBudgetBackup]
 backup finished successfully
 ```
 
-The file `backup.<sync id>.20261022.zip` is now in your storage. If something failed, the log says what, and [troubleshooting](troubleshooting.md) lists the usual causes.
+The file `backup.<sync id>.20261022_000000.zip` is now in your storage. If something failed, the log says what, and [troubleshooting](troubleshooting.md) lists the usual causes.
 
 <br>
 

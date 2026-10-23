@@ -29,8 +29,9 @@ function switch_user() {
         exit 1
     fi
 
+    # only what isn't theirs yet, so a restart doesn't walk all of /config
     mkdir -p /config
-    if ! chown -R "${RUN_UID}:${RUN_GID}" /config; then
+    if ! find /config \( ! -user "${RUN_UID}" -o ! -group "${RUN_GID}" \) -exec chown "${RUN_UID}:${RUN_GID}" {} +; then
         color yellow "could not give /config to ${RUN_UID}:${RUN_GID}, rclone may not be able to save its config"
     fi
 
@@ -55,8 +56,13 @@ function configure_cron() {
     echo "${CRON} bash /app/backup.sh" > "${CRON_CONFIG_FILE}"
 }
 
+function configure_healthcheck() {
+    printf 'start=%s\nmax_hours=%s\n' "$(date +%s)" "${HEALTHCHECK_MAX_HOURS}" > "${HEALTH_FILE}"
+}
+
 init_env
-check_rclone_connection all
+# a remote that is down now may be back by the backup, which reports it
+check_rclone_connection warn
 configure_timezone
 configure_cron
 
@@ -66,6 +72,8 @@ if [[ "$1" == "backup" ]]; then
 
     exec bash "/app/backup.sh"
 fi
+
+configure_healthcheck
 
 # foreground run crond
 exec /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}"

@@ -5,8 +5,15 @@
 
 ENV_FILE="${ENV_FILE:-"/.env"}"
 CRON_CONFIG_FILE="${HOME}/crontabs"
-# result of the last backup, for the Docker health check
-LAST_BACKUP_FILE="${HOME}/last-backup"
+# result of the last backup, for the Docker health check. In /config when it
+# is mounted, so it outlives the container
+if [[ -d /config ]]; then
+    LAST_BACKUP_FILE="/config/last-backup"
+else
+    LAST_BACKUP_FILE="${HOME}/last-backup"
+fi
+# when the health check expects a backup by, written at startup
+HEALTH_FILE="${HOME}/health"
 
 # Outside the image (e.g. run by systemd), use the Actual CLI installed
 # with `npm ci` next to the scripts
@@ -83,6 +90,8 @@ function check_rclone_connection() {
         if [[ "$1" == "all" ]]; then
             color red "storage system connection failure exists"
             exit 1
+        elif [[ "$1" == "warn" ]]; then
+            color yellow "storage system connection failure exists, the scheduled backup will try again"
         elif [[ "$1" == "any" ]]; then
             if [[ "${ERROR_COUNT}" -eq "${#RCLONE_REMOTE_LIST[@]}" ]]; then
                 color red "all storage system connections failed"
@@ -92,6 +101,35 @@ function check_rclone_connection() {
             fi
         fi
     fi
+}
+
+########################################
+# Check whether a cron expression runs at least once a day: its day of
+# month, month and day of week fields, and year if any, are all "*".
+# Arguments:
+#     cron expression
+# Returns:
+#     0 if it runs every day, 1 otherwise or if unsure
+########################################
+function cron_runs_daily() {
+    local FIELDS
+    local FIELD
+    local START=2
+    local COUNT=3
+    read -ra FIELDS <<< "$1"
+
+    case "${#FIELDS[@]}" in
+        1) [[ "${FIELDS[0]}" =~ ^@(hourly|daily|midnight)$ ]]; return ;;
+        5) ;;
+        6) COUNT=4 ;;                # with a year
+        7) START=3; COUNT=4 ;;       # with seconds and a year
+        *) return 1 ;;
+    esac
+
+    for FIELD in "${FIELDS[@]:START:COUNT}"
+    do
+        [[ "${FIELD}" == "*" || "${FIELD}" == "?" ]] || return 1
+    done
 }
 
 ########################################
@@ -195,7 +233,7 @@ function send_ping() {
 # the notification library used by Watchtower. Failures are only logged,
 # they never fail the backup.
 # Arguments:
-#     event (start / success / failure)
+#     event (start / success / failure / warning)
 #     subject
 #     content
 ########################################
@@ -204,7 +242,9 @@ function send_shoutrrr() {
         return
     fi
 
-    if [[ ",${NOTIFICATION_ON}," != *",$1,"* ]]; then
+    # warnings also go to whoever gets the failure notifications
+    if [[ ",${NOTIFICATION_ON}," != *",$1,"* ]] &&
+        [[ "$1" != "warning" || ",${NOTIFICATION_ON}," != *",failure,"* ]]; then
         return
     fi
 
@@ -213,6 +253,7 @@ function send_shoutrrr() {
         start)   ICON="▶️" ;;
         success) ICON="✅" ;;
         failure) ICON="❌" ;;
+        warning) ICON="⚠️" ;;
     esac
 
     # one call per URL, so a failing service does not stop the others
@@ -239,7 +280,7 @@ function send_shoutrrr() {
 ########################################
 # Send the pings and notifications configured for a backup event.
 # Arguments:
-#     event (start / success / failure)
+#     event (start / success / failure / warning)
 #     content
 ########################################
 function send_notification() {
@@ -257,6 +298,9 @@ function send_notification() {
             send_ping failure "Actual Budget Backup Failed" "$2"
             send_ping completion "Actual Budget Backup Failed" "$2"
             send_shoutrrr failure "Actual Budget Backup Failed" "$2"
+            ;;
+        warning)
+            send_shoutrrr warning "Actual Budget Backup Warning" "$2"
             ;;
     esac
 }
@@ -298,8 +342,8 @@ function init_env_notification() {
     IFS=, read -ra EVENTS <<< "${NOTIFICATION_ON}"
     for EVENT in "${EVENTS[@]}"
     do
-        if [[ ! "${EVENT}" =~ ^(start|success|failure)$ ]]; then
-            color yellow "NOTIFICATION_ON: ignoring unknown event \"${EVENT}\", supported: start, success, failure"
+        if [[ ! "${EVENT}" =~ ^(start|success|failure|warning)$ ]]; then
+            color yellow "NOTIFICATION_ON: ignoring unknown event \"${EVENT}\", supported: start, success, failure, warning"
         fi
     done
 }
@@ -392,6 +436,25 @@ function get_env() {
     fi
 
     export "${VAR}=${VALUE}"
+}
+
+########################################
+# Stop passing the passwords and the .env values on to every command the
+# backup runs, such as rclone and curl. The Actual CLI gets its passwords
+# explicitly.
+# Arguments:
+#     None
+########################################
+function unexport_secrets() {
+    local VAR
+
+    for VAR in $(compgen -e)
+    do
+        if [[ "${VAR}" =~ ^(DOTENV_.*|ACTUAL_BUDGET_PASSWORD|ACTUAL_BUDGET_E2E_PASSWORD.*|ZIP_PASSWORD|NOTIFICATION_URLS|PING_URL.*)$ ]]; then
+            # shellcheck disable=SC2163 # un-exports the variable named in VAR
+            export -n "${VAR}"
+        fi
+    done
 }
 
 ########################################
@@ -535,6 +598,19 @@ function init_env() {
     get_env CRON
     CRON="${CRON:-"0 0 * * *"}"
 
+    # HEALTHCHECK_MAX_HOURS, by default a day plus some slack when CRON runs
+    # every day, and off otherwise
+    get_env HEALTHCHECK_MAX_HOURS
+    if [[ -z "${HEALTHCHECK_MAX_HOURS}" ]]; then
+        HEALTHCHECK_MAX_HOURS=0
+        if cron_runs_daily "${CRON}"; then
+            HEALTHCHECK_MAX_HOURS=26
+        fi
+    elif [[ ! "${HEALTHCHECK_MAX_HOURS}" =~ ^[0-9]+$ ]]; then
+        color red "HEALTHCHECK_MAX_HOURS must be a number of hours, e.g. 26, or 0 to turn it off"
+        exit 1
+    fi
+
     # RCLONE_REMOTE_NAME
     get_env RCLONE_REMOTE_NAME
     RCLONE_REMOTE_NAME="${RCLONE_REMOTE_NAME:-"ActualBudgetBackup"}"
@@ -581,11 +657,15 @@ function init_env() {
     fi
 
     # BACKUP_FILE_DATE_FORMAT
+    # with the time by default, so a second backup the same day doesn't
+    # replace the first; the old variables keep their date-only default
     get_env BACKUP_FILE_SUFFIX
     get_env BACKUP_FILE_DATE
     get_env BACKUP_FILE_DATE_SUFFIX
-    BACKUP_FILE_DATE="$(echo "${BACKUP_FILE_DATE:-"%Y%m%d"}${BACKUP_FILE_DATE_SUFFIX}" | sed 's/[^0-9a-zA-Z%_-]//g')"
-    BACKUP_FILE_DATE_FORMAT="$(echo "${BACKUP_FILE_SUFFIX:-"${BACKUP_FILE_DATE}"}" | sed 's/\///g')"
+    if [[ -z "${BACKUP_FILE_SUFFIX}" && ( -n "${BACKUP_FILE_DATE}" || -n "${BACKUP_FILE_DATE_SUFFIX}" ) ]]; then
+        BACKUP_FILE_SUFFIX="$(echo "${BACKUP_FILE_DATE:-"%Y%m%d"}${BACKUP_FILE_DATE_SUFFIX}" | sed 's/[^0-9a-zA-Z%_-]//g')"
+    fi
+    BACKUP_FILE_DATE_FORMAT="$(echo "${BACKUP_FILE_SUFFIX:-"%Y%m%d_%H%M%S"}" | sed 's/\///g')"
 
     # TIMEZONE (falls back to TZ, the usual container variable)
     get_env TIMEZONE
@@ -603,6 +683,7 @@ function init_env() {
 
     color yellow "========================================"
     color yellow "CRON: ${CRON}"
+    color yellow "HEALTHCHECK_MAX_HOURS: ${HEALTHCHECK_MAX_HOURS} (0 = off)"
 
     for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
     do

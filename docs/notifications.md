@@ -1,6 +1,6 @@
 # Notifications
 
-The backup can send a message when it starts, succeeds or fails, to Telegram, Discord, Slack, ntfy, Gotify, Pushover, email and [many other services](https://shoutrrr.nickfedor.com/latest/services/overview/).
+The backup can send a message when it starts, succeeds, fails or has a warning, to Telegram, Discord, Slack, ntfy, Gotify, Pushover, email and [many other services](https://shoutrrr.nickfedor.com/latest/services/overview/).
 
 Notifications are sent with [Shoutrrr](https://github.com/nicholas-fedor/shoutrrr), the notification library [Watchtower](https://github.com/nicholas-fedor/watchtower) uses, so you can reuse the URLs from your `WATCHTOWER_NOTIFICATION_URL`.
 
@@ -13,13 +13,15 @@ For health check services such as healthchecks.io, use [ping notifications](ping
 | Variable | Default | Description |
 | --- | --- | --- |
 | `NOTIFICATION_URLS` | | One or more [Shoutrrr URLs](https://shoutrrr.nickfedor.com/latest/services/overview/), separated by spaces or new lines |
-| `NOTIFICATION_ON` | `success,failure` | When to send a notification, comma separated: `start`, `success`, `failure` |
+| `NOTIFICATION_ON` | `success,failure` | When to send a notification, comma separated: `start`, `success`, `failure`, `warning` |
 
 `NOTIFICATION_URLS` can also be set with `NOTIFICATION_URLS_FILE` (e.g. a Docker secret) or in the `.env` file.
 
 Each message has a title, such as `✅ Actual Budget Backup Success`, and a text, such as `Backup finished at 2026-10-21 16:30:32 UTC. 1 budget(s) uploaded to 1 remote(s).`
 
-A backup counts as failed when any budget fails to download or archive, or any upload fails.
+A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails.
+
+A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
 
 URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens.
 

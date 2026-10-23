@@ -32,7 +32,7 @@ There is no rclone remote with that name.
 
 #### `storage system connection failure`
 
-rclone can't reach the storage. Test it with `rclone lsd ActualBudgetBackup:` using the command in [destination](configuration.md#destination). An expired token, common with OneDrive and Google Drive after a long time, is fixed with `rclone config reconnect ActualBudgetBackup:`.
+rclone can't reach the storage. At startup this is only a warning: the container keeps running and the scheduled backup tries again, failing and notifying if the storage is still unreachable. Test it with `rclone lsd ActualBudgetBackup:` using the command in [destination](configuration.md#destination). An expired token, common with OneDrive and Google Drive after a long time, is fixed with `rclone config reconnect ActualBudgetBackup:`.
 
 #### `external volume "actualbudget-rclone-data" not found`
 
@@ -74,7 +74,7 @@ The encryption password is missing or wrong. Each budget reads its own `ACTUAL_B
 
 #### `WARNING: your Actual server (...) is older than the Actual CLI`
 
-The backup works, but your server can't import it until you upgrade Actual. A [fresh Actual](restore.md) can. See [Actual CLI version](configuration.md#actual-cli-version).
+The backup works, but your server can't import it until you upgrade Actual. It is also sent as a [`warning` notification](notifications.md). A [fresh Actual](restore.md) can. See [Actual CLI version](configuration.md#actual-cli-version).
 
 <br>
 
@@ -88,11 +88,11 @@ The backup works, but your server can't import it until you upgrade Actual. A [f
 
 #### A backup a day replaces the previous one
 
-The default file name has only the date. Add the time to [`BACKUP_FILE_SUFFIX`](configuration.md#file-names).
+[`BACKUP_FILE_SUFFIX`](configuration.md#file-names) has only the date. Add the time, as the default `%Y%m%d_%H%M%S` does.
 
 #### The container is `unhealthy`
 
-The last scheduled backup failed; its log says why. The container is healthy again once a backup succeeds. To see the result of the last backup:
+The last backup failed, or none succeeded in the last [`HEALTHCHECK_MAX_HOURS`](configuration.md#schedule); the log says why, and for the second, check that `CRON` runs when you expect. The container is healthy again once a backup succeeds. To see the result of the last backup:
 
 ```shell
 docker inspect --format '{{json .State.Health.Log}}' <container>
