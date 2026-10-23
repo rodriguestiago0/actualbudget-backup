@@ -42,24 +42,20 @@ LABEL org.opencontainers.image.source="https://github.com/rodriguestiago0/actual
   org.opencontainers.image.description="Back up Actual Budget to any rclone remote" \
   org.opencontainers.image.licenses="MIT"
 
-ARG USER_NAME="backuptool"
-ARG USER_ID="1100"
-
 # HOME in /tmp, so the backup can also run as PUID/PGID or `user:`
 ENV LOCALTIME_FILE="/tmp/localtime" \
   HOME="/tmp" \
   PATH="/app/node_modules/.bin:${PATH}"
 
 RUN apk add --no-cache bash grep supercronic 7zip nodejs tzdata curl su-exec \
-  && ln -sf "${LOCALTIME_FILE}" /etc/localtime \
-  && addgroup -g "${USER_ID}" "${USER_NAME}" \
-  && adduser -u "${USER_ID}" -Ds /bin/sh -G "${USER_NAME}" "${USER_NAME}"
+  && ln -sf "${LOCALTIME_FILE}" /etc/localtime
 
 COPY --from=cli /app/node_modules /app/node_modules
 COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
 COPY --chmod=755 scripts/*.sh /app/
 
-# unhealthy while the last backup failed, see scripts/healthcheck.sh
+# unhealthy while the last backup failed or one is overdue, see
+# scripts/healthcheck.sh
 HEALTHCHECK --interval=5m --timeout=10s CMD ["/app/healthcheck.sh"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]

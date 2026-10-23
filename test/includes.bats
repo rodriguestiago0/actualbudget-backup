@@ -158,3 +158,85 @@ ENV
     [[ "$status" -eq 1 ]]
     [[ "$output" == "failed: the last backup failed at today, check the logs" ]]
 }
+
+@test "healthcheck is unhealthy when a backup is overdue" {
+    printf 'start=%s\nmax_hours=26\n' "$(( $(date +%s) - 27 * 3600 ))" > "${BATS_TEST_TMPDIR}/health"
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"no successful backup in the last 26 hours"* ]]
+
+    printf 'ok: the last backup finished at today\nlast_success=%s\n' "$(( $(date +%s) - 3600 ))" > "${BATS_TEST_TMPDIR}/last-backup"
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 0 ]]
+
+    # a recent start gives the first backup time to run
+    printf 'start=%s\nmax_hours=26\n' "$(date +%s)" > "${BATS_TEST_TMPDIR}/health"
+    printf 'ok: the last backup finished long ago\nlast_success=1\n' > "${BATS_TEST_TMPDIR}/last-backup"
+    HOME="${BATS_TEST_TMPDIR}" run "$BATS_TEST_DIRNAME/../scripts/healthcheck.sh"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "cron_runs_daily tells daily schedules from rarer ones" {
+    cron_runs_daily "0 0 * * *"
+    cron_runs_daily "*/15 2-4 * * ?"
+    cron_runs_daily "@hourly"
+    cron_runs_daily "0 0 3 * * * *"
+    ! cron_runs_daily "0 0 * * 0"
+    ! cron_runs_daily "0 0 1 * *"
+    ! cron_runs_daily "@weekly"
+    ! cron_runs_daily "0 0 * * * 2027"
+}
+
+@test "init_env sets HEALTHCHECK_MAX_HOURS from CRON" {
+    export ACTUAL_BUDGET_URL="https://actual" ACTUAL_BUDGET_SYNC_ID="id"
+    result=$(init_env > /dev/null; echo "${HEALTHCHECK_MAX_HOURS}")
+    [[ "$result" == "26" ]]
+    result=$(CRON="0 0 * * 0" init_env > /dev/null; echo "${HEALTHCHECK_MAX_HOURS}")
+    [[ "$result" == "0" ]]
+    result=$(export CRON="0 0 * * 0" HEALTHCHECK_MAX_HOURS=170; init_env > /dev/null; echo "${HEALTHCHECK_MAX_HOURS}")
+    [[ "$result" == "170" ]]
+}
+
+@test "file names have the time by default, the old variables keep the date" {
+    export ACTUAL_BUDGET_URL="https://actual" ACTUAL_BUDGET_SYNC_ID="id"
+    result=$(init_env > /dev/null; echo "${BACKUP_FILE_DATE_FORMAT}")
+    [[ "$result" == "%Y%m%d_%H%M%S" ]]
+    result=$(BACKUP_FILE_DATE_SUFFIX="-x" init_env > /dev/null; echo "${BACKUP_FILE_DATE_FORMAT}")
+    [[ "$result" == "%Y%m%d-x" ]]
+    result=$(BACKUP_FILE_SUFFIX="%Y/%m" BACKUP_FILE_DATE="%d" init_env > /dev/null; echo "${BACKUP_FILE_DATE_FORMAT}")
+    [[ "$result" == "%Y%m" ]]
+}
+
+@test "send_shoutrrr sends warnings to failure subscribers" {
+    shoutrrr() { echo "called"; }
+    NOTIFICATION_URL_LIST=("generic://example.com")
+    NOTIFICATION_ON="failure"
+    [[ "$(send_shoutrrr warning "subject" "content")" == *"warning notification has been sent"* ]]
+    NOTIFICATION_ON="success"
+    [[ -z "$(send_shoutrrr warning "subject" "content")" ]]
+    NOTIFICATION_ON="warning"
+    [[ "$(send_shoutrrr warning "subject" "content")" == *"warning notification has been sent"* ]]
+}
+
+@test "check_rclone_connection warn continues when a remote is down" {
+    rclone() {
+        case "$1" in
+            listremotes) printf 'first:\n' ;;
+            lsd|mkdir) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+    RCLONE_GLOBAL_FLAG=""
+    RCLONE_REMOTE_LIST=("first:/backups")
+    run check_rclone_connection warn
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"the scheduled backup will try again"* ]]
+}
+
+@test "unexport_secrets keeps secrets from child processes" {
+    export ZIP_PASSWORD="zip" ACTUAL_BUDGET_E2E_PASSWORD_1="e2e" DOTENV_X="x" RCLONE_CONFIG_A_TYPE="local"
+    unexport_secrets
+    [[ "${ZIP_PASSWORD}" == "zip" ]]
+    [[ -z "$(bash -c 'echo "${ZIP_PASSWORD}${ACTUAL_BUDGET_E2E_PASSWORD_1}${DOTENV_X}"')" ]]
+    [[ "$(bash -c 'echo "${RCLONE_CONFIG_A_TYPE}"')" == "local" ]]
+}

@@ -13,14 +13,15 @@ All settings are environment variables. Only the first three are required.
 | [`RCLONE_GLOBAL_FLAG`](#destination) | | Extra rclone flags |
 | [`CRON`](#schedule) | `0 0 * * *` | When to back up |
 | [`TIMEZONE`](#schedule) | `UTC` | Timezone for `CRON` and file names (`TZ` works too) |
+| [`HEALTHCHECK_MAX_HOURS`](#schedule) | `26` for a daily `CRON` | Unhealthy when no backup succeeded in this many hours; `0` turns it off |
 | [`BACKUP_KEEP_DAYS`](#retention) | `0` | Delete backups older than this many days; `0` keeps all |
 | [`ZIP_ENABLE`](#archive) | `TRUE` | `FALSE` saves an uncompressed `tar` instead |
 | [`ZIP_TYPE`](#archive) | `zip` | `zip` or `7z` |
 | [`ZIP_PASSWORD`](#archive) | | Password for the archive |
-| [`BACKUP_FILE_SUFFIX`](#file-names) | `%Y%m%d` | Date format in file names |
+| [`BACKUP_FILE_SUFFIX`](#file-names) | `%Y%m%d_%H%M%S` | Date format in file names |
 | [`PUID`, `PGID`](#user) | | Run as this user and group instead of root |
 | [`NOTIFICATION_URLS`](notifications.md) | | Where to send notifications |
-| [`NOTIFICATION_ON`](notifications.md) | `success,failure` | Which events to notify |
+| [`NOTIFICATION_ON`](notifications.md) | `success,failure` | Which events to notify (`warning` is sent with `failure`) |
 | [`PING_URL`, `PING_URL_WHEN_*`](ping-notifications.md) | | URLs to call for health checks |
 
 Several budgets and destinations use numbered variables, see [several budgets](multiple-sync-ids.md) and [several destinations](multiple-remote-destinations.md).
@@ -64,6 +65,8 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`TIMEZONE`**: a [timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) such as `Europe/Lisbon`. It sets when `CRON` runs, the times in the log and notifications, and the date in file names. `TZ` works too; when both are set, `TIMEZONE` wins. An unknown name is logged and UTC is used.
 
+**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`), the default is `26`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup`, so it outlives the container.
+
 <br>
 
 ## Retention
@@ -90,7 +93,7 @@ Each budget is saved as its own archive, with `db.sqlite` and `metadata.json` at
 
 Backups are named `backup.<sync id>.<date>.<zip|7z|tar>`.
 
-**`BACKUP_FILE_SUFFIX`**: the date part, in [`date` format](https://man7.org/linux/man-pages/man1/date.1.html). The default `%Y%m%d` gives one name per day, so a second backup the same day replaces the first. If you back up more often, add the time, e.g. `%Y%m%d_%H%M`. Any `/` is removed.
+**`BACKUP_FILE_SUFFIX`**: the date part, in [`date` format](https://man7.org/linux/man-pages/man1/date.1.html). The default `%Y%m%d_%H%M%S` includes the time, so a second backup the same day, such as a [manual one](manually-trigger-a-backup.md), never replaces the first. `%Y%m%d` gives one name per day instead, where each backup replaces that day's earlier one. Any `/` is removed.
 
 <br>
 
@@ -173,5 +176,5 @@ These still work but are no longer needed:
 
 | Variable | Instead |
 | --- | --- |
-| `BACKUP_FILE_DATE`, `BACKUP_FILE_DATE_SUFFIX` | `BACKUP_FILE_SUFFIX`, which replaces both and wins when set. The old ones built the name as `${BACKUP_FILE_DATE}${BACKUP_FILE_DATE_SUFFIX}`, keeping only letters, digits, `%`, `_` and `-`. |
+| `BACKUP_FILE_DATE`, `BACKUP_FILE_DATE_SUFFIX` | `BACKUP_FILE_SUFFIX`, which replaces both and wins when set. The old ones built the name as `${BACKUP_FILE_DATE}${BACKUP_FILE_DATE_SUFFIX}`, keeping only letters, digits, `%`, `_` and `-`, with `BACKUP_FILE_DATE` defaulting to `%Y%m%d`. |
 | `ACTUAL_API_VERSION` | Ignored; the CLI version comes with the image. |
