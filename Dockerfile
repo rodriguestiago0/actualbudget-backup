@@ -18,7 +18,7 @@ RUN npm ci --omit=dev --no-audit --no-fund \
 # Runs on the build platform; it only downloads and verifies the binary.
 FROM --platform=$BUILDPLATFORM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS shoutrrr
 
-ARG SHOUTRRR_VERSION="0.22.0"
+ARG SHOUTRRR_VERSION="0.22.1"
 ARG TARGETARCH
 
 RUN case "${TARGETARCH}" in \
