@@ -1,21 +1,28 @@
 version: 2
 updates:
+  # No cooldown: take new releases on the next run instead of waiting Dependabot's default 3 days.
   # Actual CLI (keep it in step with your Actual server version)
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 0
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 0
 
   # one PR a week for all the actions
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 0
     groups:
       github-actions:
         patterns: ["*"]
