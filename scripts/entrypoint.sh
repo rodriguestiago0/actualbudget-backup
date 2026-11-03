@@ -72,7 +72,7 @@ configure_cron
 # own process group, so the whole group is signalled: that also stops the
 # actual or rclone command a backup is waiting on.
 ########################################
-# shellcheck disable=SC2329 # called by the trap below
+# shellcheck disable=SC2317,SC2329 # called by the trap below
 function forward_stop() {
     local PID
     for PID in $(pgrep -f '^bash /app/backup.sh'); do
