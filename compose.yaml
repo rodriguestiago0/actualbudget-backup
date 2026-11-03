@@ -2,6 +2,8 @@ services:
   backup:
     image: rodriguestiago0/actualbudget-backup:latest
     restart: always
+    # time for a stopped backup to report that it didn't finish
+    stop_grace_period: 2m
     environment:
       # Actual server (required)
       ACTUAL_BUDGET_URL: 'https://actual.example.com'

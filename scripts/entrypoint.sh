@@ -66,14 +66,41 @@ check_rclone_connection warn
 configure_timezone
 configure_cron
 
+########################################
+# Pass a stop signal on to every running backup, then to the child.
+# Supercronic doesn't forward signals to its jobs, and each job runs in its
+# own process group, so the whole group is signalled: that also stops the
+# actual or rclone command a backup is waiting on.
+########################################
+# shellcheck disable=SC2329 # called by the trap below
+function forward_stop() {
+    local PID
+    for PID in $(pgrep -f '^bash /app/backup.sh'); do
+        kill -TERM -- "-${PID}" 2> /dev/null
+    done
+    kill -TERM "${CHILD}" 2> /dev/null
+}
+
+trap forward_stop TERM INT
+
 # backup manually
 if [[ "$1" == "backup" ]]; then
     color yellow "Manually triggering a backup will only execute the backup script once, and the container will exit upon completion."
 
-    exec bash "/app/backup.sh"
+    # in its own process group, like a supercronic job
+    setsid bash /app/backup.sh &
+else
+    configure_healthcheck
+
+    /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}" &
 fi
+CHILD=$!
 
-configure_healthcheck
-
-# foreground run crond
-exec /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}"
+# a trapped signal ends wait early, so wait again until the child has exited
+wait "${CHILD}"
+STATUS=$?
+while kill -0 "${CHILD}" 2> /dev/null; do
+    wait "${CHILD}"
+    STATUS=$?
+done
+exit "${STATUS}"
