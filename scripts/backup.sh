@@ -277,7 +277,9 @@ function on_exit() {
     local RESULT="ok: the last backup finished at ${NOW_TEXT}"
     local LAST_SUCCESS
     LAST_SUCCESS="$(sed -n 's/^last_success=//p' "${LAST_BACKUP_FILE}" 2> /dev/null)"
-    if [[ ${STATUS} -ne 0 ]]; then
+    if [[ ${STATUS} -ge 128 ]]; then
+        RESULT="failed: the last backup was stopped at ${NOW_TEXT} before it finished"
+    elif [[ ${STATUS} -ne 0 ]]; then
         RESULT="failed: the last backup failed at ${NOW_TEXT}, check the logs"
     else
         LAST_SUCCESS="$(date +%s)"
@@ -287,6 +289,8 @@ function on_exit() {
 
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
+    elif [[ ${STATUS} -ge 128 ]]; then
+        send_notification failure "Backup stopped at ${NOW_TEXT} before it finished (signal $((STATUS - 128)))."
     elif [[ "${FAILED_COUNT}" -gt 0 ]]; then
         send_notification failure "Backup finished at ${NOW_TEXT} with ${FAILED_COUNT} error(s). Check the logs for details."
     else
@@ -295,6 +299,11 @@ function on_exit() {
 }
 
 trap on_exit EXIT
+# Without these, the EXIT trap sees the last command's status (usually 0) when the backup is
+# stopped, and reports a backup that never finished as a success.
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 
 init_env
 unexport_secrets
