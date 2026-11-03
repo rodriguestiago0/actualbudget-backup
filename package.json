@@ -4,6 +4,6 @@
   "description": "Runtime dependencies for the actualbudget-backup image",
   "license": "MIT",
   "dependencies": {
-    "@actual-app/cli": "26.10.0"
+    "@actual-app/cli": "26.11.0"
   }
 }
