@@ -171,6 +171,8 @@ docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:latest -
 
 The CLI upgrades the budget to its own version while downloading it, so a backup opens in that version of Actual or newer. Each backup logs both versions, and warns when your server is older than the CLI. Your own server then can't import those backups until you upgrade it, while a [fresh Actual](restore.md) still can.
 
+A new minor or major CLI version always comes in a new minor image release (`v1.3.0`, not `v1.2.4`), so pinning `v1.2` keeps the CLI's minor version. To follow your server's version instead, use the `actual-<version>` tags, e.g. `rodriguestiago0/actualbudget-backup:actual-26.11` for the newest release with CLI 26.11.x. Each release note also names its CLI version.
+
 <br>
 
 ## Old settings

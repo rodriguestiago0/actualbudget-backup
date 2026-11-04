@@ -63,6 +63,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # actual-26.11.0 and actual-26.11 name the bundled Actual CLI, for
+      # users who keep the image in step with their server
+      - name: Read the Actual CLI version
+        id: cli
+        run: |
+          VERSION=$(jq -r '.packages["node_modules/@actual-app/cli"].version' package-lock.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo "$VERSION" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -74,6 +83,8 @@ jobs:
             type=semver,pattern=v{{major}}.{{minor}},value=${{ env.TAG }},enable=${{ steps.newest.outputs.is_newest }}
             type=semver,pattern=v{{major}},value=${{ env.TAG }},enable=${{ steps.newest.outputs.is_newest }}
             type=raw,value=latest,enable=${{ steps.newest.outputs.is_newest }}
+            type=raw,value=actual-${{ steps.cli.outputs.version }},enable=${{ steps.newest.outputs.is_newest }}
+            type=raw,value=actual-${{ steps.cli.outputs.minor }},enable=${{ steps.newest.outputs.is_newest }}
           flavor: latest=false
 
       - name: Build and push Docker image

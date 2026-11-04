@@ -5,6 +5,8 @@
 # (the PR title, for merge and squash merges) change that:
 #   [skip release]   not released on its own
 #   [minor]/[major]  bump that part instead of the patch version
+# A change of the @actual-app/cli minor or major version also bumps the minor
+# version, since backups then need a newer Actual to import.
 #
 # Usage: release-plan.sh
 # Prints, as key=value lines (for $GITHUB_OUTPUT):
@@ -17,6 +19,16 @@ set -euo pipefail
 
 IMAGE_PATHS='^(Dockerfile|\.dockerignore|package(-lock)?\.json|scripts/)'
 RELEASE_PATHS="${IMAGE_PATHS}"
+
+########################################
+# The major.minor of the Actual CLI in a commit, or nothing.
+# Arguments:
+#     commit
+########################################
+function cli_minor() {
+    git show "$1:package-lock.json" 2> /dev/null |
+        jq -r '.packages["node_modules/@actual-app/cli"].version // empty' | cut -d. -f1-2
+}
 
 LATEST_TAG="$(git describe --tags --abbrev=0 2> /dev/null || echo "v0.0.0")"
 RANGE="${LATEST_TAG}..HEAD"
@@ -50,7 +62,8 @@ for COMMIT in $(git rev-list --first-parent "${RANGE}"); do
     RELEASE=true
     if grep -q '\[major\]' <<< "${MSG}"; then
         BUMP="major"
-    elif [[ "${BUMP}" != major ]] && grep -q '\[minor\]' <<< "${MSG}"; then
+    elif [[ "${BUMP}" != major ]] && { grep -q '\[minor\]' <<< "${MSG}" ||
+        [[ "$(cli_minor "${COMMIT}^1")" != "$(cli_minor "${COMMIT}")" ]]; }; then
         BUMP="minor"
     fi
 done
