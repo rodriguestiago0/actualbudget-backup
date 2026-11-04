@@ -37,8 +37,14 @@ RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+# then drops what the Node API never loads: the browser-only SQLite
+# packages, better-sqlite3's sources and its prebuilds for other platforms
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
-  && npm cache clean --force
+  && npm cache clean --force \
+  && rm -rf node_modules/absurd-sql node_modules/@jlongster/sql.js \
+    node_modules/better-sqlite3/deps node_modules/better-sqlite3/src \
+  && find node_modules/better-sqlite3/prebuilds -name '*.node' \
+    ! -name "linuxmusl-$(node -p process.arch).node" -delete
 # better-sqlite3 falls back to build/Release/ when it has no prebuild
 COPY --from=sqlite /out/ /app/node_modules/better-sqlite3/build/Release/
 

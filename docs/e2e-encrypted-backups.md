@@ -8,6 +8,8 @@ environment:
 ```
 
 > **Note:** The backup is **not** end-to-end encrypted. Like Actual's own export, it contains the decrypted budget, because Actual can only import unencrypted files. To protect the backups, set a [`ZIP_PASSWORD`](configuration.md#archive) or use an [rclone crypt](https://rclone.org/crypt/) remote. After restoring, turn encryption on again in Actual's settings.
+>
+> When neither is set, the container logs a warning at startup and sends a [`warning` notification](notifications.md).
 
 <br>
 

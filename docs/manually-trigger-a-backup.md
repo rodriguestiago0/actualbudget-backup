@@ -8,7 +8,7 @@ From the folder with `compose.yaml`:
 docker compose run --rm backup backup
 ```
 
-This starts a separate container, so the scheduled one can keep running.
+This starts a separate container, so the scheduled one can keep running. When a backup with the same settings is already running, e.g. the scheduled one, the new one is skipped (exit status `0`).
 
 Without Compose, pass the same settings with `-e`:
 

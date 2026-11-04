@@ -66,9 +66,11 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`CRON`**: when the container starts a backup, as a [cron expression](https://crontab.guru/#0_0_*_*_*), run by [supercronic](https://github.com/aptible/supercronic). Not used when the backup is started [by systemd](systemd.md).
 
+In a timezone with daylight saving time, a `CRON` time inside the hour the clocks skip, e.g. `30 2 * * *` in Europe, may not run that day, and the container may then be `unhealthy` until the next backup. Pick a time outside 01:00 to 03:00.
+
 **`TIMEZONE`**: a [timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) such as `Europe/Lisbon`. It sets when `CRON` runs, the times in the log and notifications, and the date in file names. `TZ` works too; when both are set, `TIMEZONE` wins. An unknown name is logged and UTC is used.
 
-**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`), the default is `26`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup.<id>`, so it outlives the container. The `<id>` comes from `ACTUAL_BUDGET_URL` and the sync IDs, so containers that share the rclone volume, e.g. one per Actual server, each have their own.
+**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`, or a range over all of them such as `SUN-SAT`), the default is `26`, and when it runs every hour (its hour is `*` too, or `@hourly`) it is `3`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup.<id>`, so it outlives the container. The `<id>` comes from `ACTUAL_BUDGET_URL` and the sync IDs, so containers that share the rclone volume, e.g. one per Actual server, each have their own.
 
 <br>
 

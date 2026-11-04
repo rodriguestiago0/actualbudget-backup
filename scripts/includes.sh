@@ -31,10 +31,13 @@ fi
 #     message
 # Outputs:
 #     colorful message
+# Globals:
+#     LAST_ERROR   the last red message
 ########################################
 function color() {
     case $1 in
-        red)     echo -e "\033[31m$2\033[0m" ;;
+        # the last error, for the startup failure notification
+        red)     LAST_ERROR="$2"; echo -e "\033[31m$2\033[0m" ;;
         green)   echo -e "\033[32m$2\033[0m" ;;
         yellow)  echo -e "\033[33m$2\033[0m" ;;
         blue)    echo -e "\033[34m$2\033[0m" ;;
@@ -105,32 +108,86 @@ function check_rclone_connection() {
 }
 
 ########################################
+# Warn when end-to-end encrypted budgets would be uploaded decrypted: no
+# ZIP_PASSWORD, and a destination that is not an rclone crypt remote.
+# Arguments:
+#     "notify" to also send a warning notification
+########################################
+function warn_unencrypted_e2e_backups() {
+    local PASSWORD
+    local ENCRYPTED=FALSE
+    for PASSWORD in "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}"
+    do
+        if [[ -n "${PASSWORD}" ]]; then
+            ENCRYPTED=TRUE
+        fi
+    done
+    if [[ "${ENCRYPTED}" != "TRUE" || ( "${ZIP_ENABLE}" == "TRUE" && -n "${ZIP_PASSWORD}" ) ]]; then
+        return
+    fi
+
+    local REMOTES
+    local PLAIN=()
+    REMOTES="$(rclone ${RCLONE_GLOBAL_FLAG} listremotes --long 2> /dev/null)"
+    for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
+    do
+        if [[ "$(awk -v NAME="${RCLONE_REMOTE_X%%:*}:" '$1 == NAME { print $2 }' <<< "${REMOTES}")" != "crypt" ]]; then
+            PLAIN+=("${RCLONE_REMOTE_X}")
+        fi
+    done
+    if [[ ${#PLAIN[@]} -eq 0 ]]; then
+        return
+    fi
+
+    color yellow "WARNING: the end-to-end encrypted budgets are backed up decrypted, like Actual's own export, and uploaded without encryption to: ${PLAIN[*]}"
+    color yellow "WARNING: set ZIP_PASSWORD, or use an rclone crypt remote, to keep them encrypted"
+    if [[ "$1" == "notify" ]]; then
+        send_notification warning "End-to-end encrypted budgets are uploaded decrypted to ${PLAIN[*]}. Set ZIP_PASSWORD or use an rclone crypt remote to keep them encrypted."
+    fi
+}
+
+########################################
 # Check whether a cron expression runs at least once a day: its day of
-# month, month and day of week fields, and year if any, are all "*".
+# month, month and day of week fields, and year if any, are all "*", or a
+# range over all values such as 1-31, JAN-DEC or SUN-SAT.
 # Arguments:
 #     cron expression
+#     "hourly" to check that it runs every hour instead: the hour field is
+#     "*" or 0-23 too
 # Returns:
-#     0 if it runs every day, 1 otherwise or if unsure
+#     0 if it runs every day (or hour), 1 otherwise or if unsure
 ########################################
 function cron_runs_daily() {
     local FIELDS
-    local FIELD
     local START=2
-    local COUNT=3
-    read -ra FIELDS <<< "$1"
+    local YEAR=FALSE
+    read -ra FIELDS <<< "${1^^}"
 
     case "${#FIELDS[@]}" in
-        1) [[ "${FIELDS[0]}" =~ ^@(hourly|daily|midnight)$ ]]; return ;;
+        1)
+            if [[ "$2" == "hourly" ]]; then
+                [[ "${FIELDS[0]}" == "@HOURLY" ]]
+            else
+                [[ "${FIELDS[0]}" =~ ^@(HOURLY|DAILY|MIDNIGHT)$ ]]
+            fi
+            return
+            ;;
         5) ;;
-        6) COUNT=4 ;;                # with a year
-        7) START=3; COUNT=4 ;;       # with seconds and a year
+        6) YEAR=TRUE ;;              # with a year
+        7) START=3; YEAR=TRUE ;;     # with seconds and a year
         *) return 1 ;;
     esac
 
-    for FIELD in "${FIELDS[@]:START:COUNT}"
-    do
-        [[ "${FIELD}" == "*" || "${FIELD}" == "?" ]] || return 1
-    done
+    local ANY='^(\*|\?|\*/1)$'
+    [[ "${FIELDS[START]}" =~ ${ANY} || "${FIELDS[START]}" == "1-31" ]] || return 1
+    [[ "${FIELDS[START + 1]}" =~ ${ANY} || "${FIELDS[START + 1]}" =~ ^(1-12|JAN-DEC)$ ]] || return 1
+    [[ "${FIELDS[START + 2]}" =~ ${ANY} || "${FIELDS[START + 2]}" =~ ^(0-6|0-7|SUN-SAT)$ ]] || return 1
+    if [[ "${YEAR}" == "TRUE" ]]; then
+        [[ "${FIELDS[START + 3]}" =~ ${ANY} ]] || return 1
+    fi
+    if [[ "$2" == "hourly" ]]; then
+        [[ "${FIELDS[START - 1]}" =~ ${ANY} || "${FIELDS[START - 1]}" == "0-23" ]] || return 1
+    fi
 }
 
 ########################################
@@ -671,12 +728,14 @@ function init_env() {
     get_env CRON
     CRON="${CRON:-"0 0 * * *"}"
 
-    # HEALTHCHECK_MAX_HOURS, by default a day plus some slack when CRON runs
-    # every day, and off otherwise
+    # HEALTHCHECK_MAX_HOURS, by default an hour or a day plus some slack when
+    # CRON runs every hour or day, and off otherwise
     get_env HEALTHCHECK_MAX_HOURS
     if [[ -z "${HEALTHCHECK_MAX_HOURS}" ]]; then
         HEALTHCHECK_MAX_HOURS=0
-        if cron_runs_daily "${CRON}"; then
+        if cron_runs_daily "${CRON}" hourly; then
+            HEALTHCHECK_MAX_HOURS=3
+        elif cron_runs_daily "${CRON}"; then
             HEALTHCHECK_MAX_HOURS=26
         fi
     elif [[ ! "${HEALTHCHECK_MAX_HOURS}" =~ ^[0-9]+$ ]]; then

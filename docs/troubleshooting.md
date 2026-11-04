@@ -12,7 +12,7 @@ The first lines list the settings in use, with passwords hidden. Look for the fi
 
 ## Startup errors
 
-The container stops before any backup runs, and no notification is sent. Health check services see the missing [ping](ping-notifications.md).
+The container stops before any backup runs, and sends a failure [notification](notifications.md) and [ping](ping-notifications.md) with the error, once a day at most while it repeats.
 
 #### `ACTUAL_BUDGET_URL is not set` or `Invalid sync id`
 

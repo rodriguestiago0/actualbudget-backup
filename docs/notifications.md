@@ -25,7 +25,7 @@ A `warning` is sent when the backup works but needs your attention: your Actual 
 
 URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens. The `shoutrrr` command can only take the URL as an argument, so it does show up in `ps` on the host while a notification is sent.
 
-> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs, so no notification is sent.
+> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs. It then sends a failure notification with the error, once a day at most while the same error repeats, since `restart: always` restarts it in a loop. Settings needed to send it, such as a missing `_FILE` secret of `NOTIFICATION_URLS`, can't be reported.
 
 <br>
 

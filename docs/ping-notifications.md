@@ -25,7 +25,7 @@ Like the other variables, they can also be set with a `_FILE` suffix or in the `
 
 A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails. Old backups that can't be deleted don't make it fail; they send a [`warning`](notifications.md) instead. The container exits with status `1` when the backup failed.
 
-> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs, so no ping is sent. Health check services detect this through the missing ping.
+> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs. It then sends a failure ping with the error, once a day at most while the same error repeats, since `restart: always` restarts it in a loop. Settings needed to send it, such as a missing `_FILE` secret of `NOTIFICATION_URLS`, can't be reported.
 
 <br>
 

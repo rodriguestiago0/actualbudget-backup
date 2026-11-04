@@ -303,6 +303,12 @@ function clear_history() {
 function on_exit() {
     local STATUS=$?
     local NOW_TEXT
+
+    # another backup is running and reports for itself
+    if [[ "${LOCKED_OUT:-}" == "TRUE" ]]; then
+        return
+    fi
+
     NOW_TEXT="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 
     if [[ -n "${WORK_DIR:-}" ]]; then
@@ -347,6 +353,30 @@ trap 'exit 129' HUP
 
 init_env
 unexport_secrets
+
+########################################
+# Run one backup at a time per configuration, e.g. when a manual backup
+# overlaps the schedule. The lock is next to the status file, so it works
+# without /config too.
+########################################
+function lock_backup() {
+    local LOCK_FILE="${LAST_BACKUP_FILE}.lock"
+
+    if ! command -v flock > /dev/null || ! { exec 9>> "${LOCK_FILE}"; } 2> /dev/null; then
+        color yellow "could not lock \"${LOCK_FILE}\", backing up without checking for another running backup"
+        return
+    fi
+    # like the status file, so a backup run by root doesn't lock out the PUID user
+    chmod a+rw "${LOCK_FILE}" 2> /dev/null
+
+    if ! flock -n 9; then
+        color yellow "another backup with this configuration is running, skipping this one"
+        LOCKED_OUT="TRUE"
+        exit 0
+    fi
+}
+
+lock_backup
 
 # after init_env, so the time is in the configured TIMEZONE
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"
