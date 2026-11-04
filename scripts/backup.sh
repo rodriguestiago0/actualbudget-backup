@@ -6,6 +6,9 @@
 BACKUP_DIR="backup"
 # limit for each Actual CLI call, so a hung server can't block later runs
 ACTUAL_TIMEOUT_SECONDS=900
+# tries per budget download, waiting 15s, then 30s, between them
+DOWNLOAD_ATTEMPTS=3
+DOWNLOAD_RETRY_SECONDS=15
 FAILED_COUNT=0
 UPLOADED_COUNT=0
 
@@ -120,20 +123,31 @@ function download_budget() {
     local SYNC_ID="$1"
     local DATA_DIR
     local BUDGET_DIR
+    local ATTEMPT
 
-    DATA_DIR="$(mktemp -d)"
     backup_file_name "${SYNC_ID}"
     color blue "downloading budget $(color yellow "[${SYNC_ID} -> ${BACKUP_FILE_ZIP}]")"
 
-    # pass secrets through the environment so they don't show up in `ps`
-    if ! ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
-        ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
-        ACTUAL_ENCRYPTION_PASSWORD="$2" \
-        timeout "${ACTUAL_TIMEOUT_SECONDS}" actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
-        color red "download failed \"${SYNC_ID}\""
+    # a few tries, each in an empty data dir, so a server restart or a proxy
+    # error at backup time doesn't lose the backup
+    for ATTEMPT in $(seq "${DOWNLOAD_ATTEMPTS}"); do
+        DATA_DIR="$(mktemp -d)"
+        # pass secrets through the environment so they don't show up in `ps`
+        if ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
+            ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
+            ACTUAL_ENCRYPTION_PASSWORD="$2" \
+            timeout "${ACTUAL_TIMEOUT_SECONDS}" actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
+            break
+        fi
         rm -rf "${DATA_DIR}"
-        return 1
-    fi
+
+        if [[ ${ATTEMPT} -eq ${DOWNLOAD_ATTEMPTS} ]]; then
+            color red "download failed \"${SYNC_ID}\""
+            return 1
+        fi
+        color yellow "download failed \"${SYNC_ID}\", trying again in $((ATTEMPT * DOWNLOAD_RETRY_SECONDS))s"
+        sleep $((ATTEMPT * DOWNLOAD_RETRY_SECONDS))
+    done
 
     BUDGET_DIR="$(dirname "$(find "${DATA_DIR}" -mindepth 2 -maxdepth 2 -name db.sqlite | head -n 1)")"
     if [[ ! -f "${BUDGET_DIR}/db.sqlite" ]]; then

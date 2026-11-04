@@ -42,7 +42,7 @@ Docker Compose expects the volume to exist. It is created by the first `rclone c
 
 ## Backup errors
 
-The backup runs but fails. A [notification](notifications.md) is sent, and old backups are not deleted.
+The backup runs but fails. A [notification](notifications.md) is sent, and old backups are not deleted. A budget that fails to download is tried 3 times, 15 and 30 seconds apart, before it counts as failed.
 
 #### `Authentication failed: invalid-password`
 
