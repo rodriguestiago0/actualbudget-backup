@@ -86,7 +86,7 @@ jobs:
           context: .
           target: shoutrrr
           push: false
-          platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
 
       - name: Push a branch and open a pull request
         if: steps.check.outputs.version != ''
