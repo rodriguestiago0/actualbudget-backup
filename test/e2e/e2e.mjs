@@ -6,6 +6,8 @@
 //       dump the budget as the server has it
 //   snapshot-backup <budget dir> <out>
 //       dump a budget unpacked from a backup
+//   import-backup <zip> <out>
+//       import a zip backup as the user would (Import file > Actual) and dump it
 //   compare <fixture> <server dump> <backup dump>
 //       check both dumps match each other and the fixture
 //
@@ -145,6 +147,15 @@ async function snapshotBackup(budgetDir, outPath) {
   });
 }
 
+// Imports the zip through the same import-budget handler as the UI's
+// Import file > Actual, which unpacks it and gives the budget a new id
+async function importBackup(zipPath, outPath) {
+  await withApi({}, async () => {
+    await api.importBudget(zipPath, { type: 'actual' });
+    writeFileSync(outPath, JSON.stringify(await snapshot(), null, 2));
+  });
+}
+
 function compare(fixturePath, serverPath, backupPath) {
   const fixture = readJson(fixturePath);
   const fromServer = readJson(serverPath);
@@ -198,6 +209,7 @@ const commands = {
   seed,
   'snapshot-server': snapshotServer,
   'snapshot-backup': snapshotBackup,
+  'import-backup': importBackup,
   compare,
 };
 
