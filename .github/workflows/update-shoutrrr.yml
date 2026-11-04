@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check for a new release
         id: check
@@ -61,13 +61,13 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.version != ''
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Downloads the binary for every published platform and checks it
       # against the release checksums.
       - name: Verify the release binaries
         if: steps.check.outputs.version != ''
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           target: shoutrrr
