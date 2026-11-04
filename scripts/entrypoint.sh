@@ -42,10 +42,15 @@ function switch_user() {
 
 switch_user "$@"
 
-# rclone and shoutrrr commands
-if [[ "$1" == "rclone" || "$1" == "shoutrrr" ]]; then
-    exec "$@"
-fi
+case "${1:-}" in
+    "") ;;                           # the schedule
+    backup) ;;                       # one backup, below
+    rclone|shoutrrr) exec "$@" ;;
+    *)
+        color red "unknown command \"$1\": use backup, rclone or shoutrrr, or nothing to run the schedule"
+        exit 2
+        ;;
+esac
 
 function configure_timezone() {
     ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${LOCALTIME_FILE}"
@@ -54,6 +59,15 @@ function configure_timezone() {
 function configure_cron() {
     # rewritten on every start, so a changed CRON applies after a restart
     echo "${CRON} bash /app/backup.sh" > "${CRON_CONFIG_FILE}"
+}
+
+########################################
+# Remove the work folders of backups that were killed before they could
+# clean up, as they can hold a decrypted budget. Nothing runs yet.
+########################################
+function clear_stale_work_dirs() {
+    find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -type d -name 'tmp.*' -user "$(id -u)" \
+        -exec rm -rf {} + 2> /dev/null
 }
 
 function configure_healthcheck() {
@@ -90,6 +104,7 @@ if [[ "$1" == "backup" ]]; then
     # in its own process group, like a supercronic job
     setsid bash /app/backup.sh &
 else
+    clear_stale_work_dirs
     configure_healthcheck
 
     /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}" &

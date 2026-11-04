@@ -134,7 +134,8 @@ function cron_runs_daily() {
 
 ########################################
 # Check whether a version is lower than another (e.g. 26.3.0 < 26.10.0).
-# Pre-release suffixes such as "-nightly.20261021" are ignored.
+# A leading "v" and pre-release suffixes such as "-nightly.20261021" are
+# ignored.
 # Arguments:
 #     version
 #     other version
@@ -143,8 +144,9 @@ function cron_runs_daily() {
 ########################################
 function version_lt() {
     local A B i
-    IFS=. read -ra A <<< "${1%%-*}"
-    IFS=. read -ra B <<< "${2%%-*}"
+    local V1="${1#v}" V2="${2#v}"
+    IFS=. read -ra A <<< "${V1%%-*}"
+    IFS=. read -ra B <<< "${V2%%-*}"
 
     for i in 0 1 2; do
         [[ "${A[i]:-0}" =~ ^[0-9]+$ && "${B[i]:-0}" =~ ^[0-9]+$ ]] || return 1
@@ -370,7 +372,8 @@ function export_env_file() {
     local VALUE
     local LINE_REGEX='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$'
     local SINGLE_QUOTED_REGEX="^'(.*)'[[:space:]]*(#.*)?$"
-    local DOUBLE_QUOTED_REGEX='^"(.*)"[[:space:]]*(#.*)?$'
+    # up to the first unescaped quote, so a comment may contain quotes too
+    local DOUBLE_QUOTED_REGEX='^"(([^"\\]|\\.)*)"[[:space:]]*(#.*)?$'
 
     while IFS= read -r LINE || [[ -n "${LINE}" ]]; do
         LINE="${LINE%$'\r'}"

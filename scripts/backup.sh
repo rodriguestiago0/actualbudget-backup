@@ -140,7 +140,9 @@ function download_budget() {
     # a few tries, each in an empty data dir, so a server restart or a proxy
     # error at backup time doesn't lose the backup
     for ATTEMPT in $(seq "${DOWNLOAD_ATTEMPTS}"); do
-        DATA_DIR="$(mktemp -d)"
+        # in WORK_DIR, which on_exit removes, so the decrypted budget never
+        # outlives the backup
+        DATA_DIR="$(mktemp -d -p "${WORK_DIR}")"
         # pass secrets through the environment so they don't show up in `ps`
         if ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
             ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
@@ -320,8 +322,10 @@ function on_exit() {
     else
         LAST_SUCCESS="$(date +%s)"
     fi
-    { printf '%s\n' "${RESULT}" ${LAST_SUCCESS:+"last_success=${LAST_SUCCESS}"} > "${LAST_BACKUP_FILE}" &&
-        chmod a+rw "${LAST_BACKUP_FILE}"; } 2> /dev/null
+    if ! { printf '%s\n' "${RESULT}" ${LAST_SUCCESS:+"last_success=${LAST_SUCCESS}"} > "${LAST_BACKUP_FILE}"; } 2> /dev/null; then
+        color yellow "could not write \"${LAST_BACKUP_FILE}\" for the health check, check that user $(id -u):$(id -g) can write to its folder"
+    fi
+    chmod a+rw "${LAST_BACKUP_FILE}" 2> /dev/null
 
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."

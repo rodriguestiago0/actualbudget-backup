@@ -26,6 +26,10 @@ There is no rclone remote with that name.
 - Check that the container mounts the volume where you ran `rclone config`: `actualbudget-rclone-data` at `/config/`.
 - Remotes defined with environment variables are lowercased by rclone.
 
+#### `unknown command "..."`
+
+The container's command is not `backup`, `rclone` or `shoutrrr`. Leave it out to run the schedule.
+
 #### `illegal rclone global flags`
 
 `RCLONE_GLOBAL_FLAG` contains a flag rclone doesn't know.
@@ -108,7 +112,7 @@ docker inspect --format '{{json .State.Health.Log}}' <container>
 
 #### `Permission denied` with `PUID`/`PGID` or `user:`
 
-The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. See [user](configuration.md#user).
+The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. Otherwise the log says `could not write "/config/last-backup..." for the health check`, and the health check can't follow the backups. See [user](configuration.md#user).
 
 <br>
 
