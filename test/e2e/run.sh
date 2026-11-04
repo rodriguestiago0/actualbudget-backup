@@ -8,7 +8,8 @@
 #               server, and the notification and ping are sent
 #   7z, tar     the other archive types
 #   retention   BACKUP_KEEP_DAYS deletes only old backup files, and nothing
-#               after a failed backup, which sends the failure notification
+#               after a failed backup (one that uploads nothing, and one where
+#               only one budget fails), which sends the failure notification
 #               and makes the health check fail
 #
 # Usage: test/e2e/run.sh [image]   (default: actualbudget-backup:ci)
@@ -234,17 +235,41 @@ for FILE in "${OLD_BACKUP}" notes.txt folder/backup.old.zip; do
     touch -d 2020-01-01 "${WORK}/retention/${FILE}"
 done
 
+# every download fails, so the backup stops before it uploads anything
 : > "${WORK}/hooks.log"
-if run_backup retention-failed -e ACTUAL_BUDGET_PASSWORD=wrong -e BACKUP_KEEP_DAYS=1 \
+if run_backup retention-nothing -e ACTUAL_BUDGET_PASSWORD=wrong -e BACKUP_KEEP_DAYS=1 \
     -e RCLONE_REMOTE_DIR=/work/retention "${NOTIFY[@]}"; then
-    show_log retention-failed
+    show_log retention-nothing
     fail "a backup with a wrong password succeeded"
 fi
-[[ -f "${WORK}/retention/${OLD_BACKUP}" ]] || fail "a failed backup deleted ${OLD_BACKUP}"
+[[ -f "${WORK}/retention/${OLD_BACKUP}" ]] || fail "a backup that uploaded nothing deleted ${OLD_BACKUP}"
+check_hook "GET /ping?subject=Actual+Budget+Backup+Failed"
+check_hook "with 1 error(s)"
+check_health retention-nothing 1
+echo "  a backup that uploads nothing deletes nothing, sends the failure notification and is unhealthy"
+
+# one budget is missing, so the other is uploaded and clear_history runs: only
+# its check for errors keeps the old backup. In its own folder, as the next
+# scenario expects a single new backup in retention. The old backup is not
+# named after the plain budget, which backup_file would also match.
+OLD_FAILED="backup.old.20200101.zip"
+mkdir -p "${WORK}/retention-failed"
+echo old > "${WORK}/retention-failed/${OLD_FAILED}"
+touch -d 2020-01-01 "${WORK}/retention-failed/${OLD_FAILED}"
+: > "${WORK}/hooks.log"
+if run_backup retention-failed -e BACKUP_KEEP_DAYS=1 \
+    -e ACTUAL_BUDGET_SYNC_ID_1=00000000-0000-0000-0000-000000000000 \
+    -e RCLONE_REMOTE_DIR=/work/retention-failed "${NOTIFY[@]}"; then
+    show_log retention-failed
+    fail "a backup with a missing budget succeeded"
+fi
+backup_file retention-failed "${PLAIN_ID}" zip > /dev/null
+[[ -f "${WORK}/retention-failed/${OLD_FAILED}" ]] ||
+    { show_log retention-failed; fail "a backup with errors deleted ${OLD_FAILED}"; }
 check_hook "GET /ping?subject=Actual+Budget+Backup+Failed"
 check_hook "with 1 error(s)"
 check_health retention-failed 1
-echo "  a failed backup deletes nothing, sends the failure notification and is unhealthy"
+echo "  a backup with errors uploads the other budget, deletes nothing and is unhealthy"
 
 run_backup retention -e BACKUP_KEEP_DAYS=1 -e RCLONE_REMOTE_DIR=/work/retention ||
     { show_log retention; fail "the retention backup failed"; }
