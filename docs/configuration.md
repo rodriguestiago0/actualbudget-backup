@@ -56,7 +56,7 @@ docker run --rm \
 
 **`RCLONE_REMOTE_DIR`**: the folder on the remote. It is created when missing.
 
-**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the startup check reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`.
+**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the startup check reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`. Flags show up in `ps` on the host, so don't put secrets here: set them as rclone's own environment variables instead, e.g. `RCLONE_S3_SECRET_ACCESS_KEY`. The log hides the values of flags named like a key, secret, password or token.
 
 Remotes can also be defined with rclone's own environment variables instead of a config file, e.g. `RCLONE_CONFIG_MYS3_TYPE: 's3'`. rclone lowercases these names, so set `RCLONE_REMOTE_NAME: 'mys3'`.
 

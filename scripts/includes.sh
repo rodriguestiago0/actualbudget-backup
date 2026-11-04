@@ -202,32 +202,75 @@ function send_ping() {
 
     local OPTIONS_VAR="${URL_VAR}_CURL_OPTIONS"
     local CURL_URL="${!URL_VAR}"
-    local CURL_OPTIONS="${!OPTIONS_VAR}"
     local SUBJECT_PLACEHOLDER='%{subject}'
     local CONTENT_PLACEHOLDER='%{content}'
+    local CURL_ARGS=()
+    local i
 
     if [[ -z "${CURL_URL}" ]]; then
         return
     fi
 
-    # spaces become '+' in the URL; options get the text as is
-    CURL_URL="${CURL_URL//"${SUBJECT_PLACEHOLDER}"/"${2// /+}"}"
-    CURL_URL="${CURL_URL//"${CONTENT_PLACEHOLDER}"/"${3// /+}"}"
-    CURL_OPTIONS="${CURL_OPTIONS//"${SUBJECT_PLACEHOLDER}"/"$2"}"
-    CURL_OPTIONS="${CURL_OPTIONS//"${CONTENT_PLACEHOLDER}"/"$3"}"
-
-    # eval so quoted options such as -H "Title: x" are passed as one argument
-    local CURL_COMMAND="curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"\${CURL_URL}\""
+    # Split the options from the user's own settings into words first, so
+    # quoted options such as -H "Title: x" stay one argument, and only then
+    # put the text in, so the text is never read by the shell
+    eval "CURL_ARGS=(${!OPTIONS_VAR})"
+    for i in "${!CURL_ARGS[@]}"
+    do
+        CURL_ARGS[i]="${CURL_ARGS[i]//"${SUBJECT_PLACEHOLDER}"/"$2"}"
+        CURL_ARGS[i]="${CURL_ARGS[i]//"${CONTENT_PLACEHOLDER}"/"$3"}"
+    done
+    CURL_URL="${CURL_URL//"${SUBJECT_PLACEHOLDER}"/"$(urlencode "$2")"}"
+    CURL_URL="${CURL_URL//"${CONTENT_PLACEHOLDER}"/"$(urlencode "$3")"}"
 
     if [[ "${PING_DEBUG}" == "TRUE" ]]; then
-        color yellow "curl command: curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"${CURL_URL}\""
+        local SHOWN=""
+        if [[ ${#CURL_ARGS[@]} -gt 0 ]]; then
+            SHOWN="$(printf ' %q' "${CURL_ARGS[@]}")"
+        fi
+        color yellow "curl command: curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${SHOWN} $(printf '%q' "${CURL_URL}")"
     fi
 
-    if eval "${CURL_COMMAND}"; then
+    # the URL often holds a token, so it goes to curl on stdin, as a config
+    # file, rather than on the command line, which `ps` shows
+    CURL_URL="${CURL_URL//\\/\\\\}"
+    CURL_URL="${CURL_URL//\"/\\\"}"
+    if printf 'url = "%s"\n' "${CURL_URL}" |
+        curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null "${CURL_ARGS[@]}" -K -; then
         color blue "$1 ping has been sent successfully"
     else
         color red "$1 ping sending has failed"
     fi
+}
+
+########################################
+# Percent-encode text for a URL.
+# Arguments:
+#     text
+# Outputs:
+#     encoded text
+########################################
+function urlencode() {
+    local LC_ALL=C
+    local TEXT="$1"
+    local OUT=""
+    local CHAR
+    local CODE
+    local i
+
+    for (( i = 0; i < ${#TEXT}; i++ ))
+    do
+        CHAR="${TEXT:i:1}"
+        if [[ "${CHAR}" =~ [A-Za-z0-9._~-] ]]; then
+            OUT+="${CHAR}"
+        else
+            # one byte at a time; musl's C locale maps bytes above 0x7F to
+            # 0xDF80 and up, so keep only the byte
+            printf -v CODE '%d' "'${CHAR}"
+            printf -v OUT '%s%%%02X' "${OUT}" $(( CODE & 0xFF ))
+        fi
+    done
+    printf '%s' "${OUT}"
 }
 
 ########################################
@@ -701,7 +744,8 @@ function init_env() {
         color yellow "RCLONE_REMOTE: ${RCLONE_REMOTE_X}"
     done
 
-    color yellow "RCLONE_GLOBAL_FLAG: ${RCLONE_GLOBAL_FLAG}"
+    # hide the values of flags such as --s3-secret-access-key
+    color yellow "RCLONE_GLOBAL_FLAG: $(sed -E 's/(--[a-z0-9-]*(key|secret|pass|token)[a-z0-9-]*)(=|[[:space:]]+)[^[:space:]-][^[:space:]]*/\1\3***/g' <<< "${RCLONE_GLOBAL_FLAG}")"
     color yellow "ZIP_ENABLE: ${ZIP_ENABLE}"
     color yellow "ZIP_PASSWORD: ${#ZIP_PASSWORD} Chars"
     color yellow "ZIP_TYPE: ${ZIP_TYPE}"

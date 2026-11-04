@@ -246,7 +246,7 @@ check_backup "$(backup_file zip "${ENCRYPTED_ID}" zip)" "${ENCRYPTED_ID}" "${E2E
 
 check_hook "POST /notify"
 check_hook "2 budget(s) uploaded to 2 remote(s)"
-check_hook "GET /ping?subject=Actual+Budget+Backup+Success"
+check_hook "GET /ping?subject=Actual%20Budget%20Backup%20Success"
 echo "  notification and ping sent"
 
 #################### 7z and tar ####################
@@ -281,7 +281,7 @@ if run_backup retention-nothing -e ACTUAL_BUDGET_PASSWORD=wrong -e BACKUP_KEEP_D
     fail "a backup with a wrong password succeeded"
 fi
 [[ -f "${WORK}/retention/${OLD_BACKUP}" ]] || fail "a backup that uploaded nothing deleted ${OLD_BACKUP}"
-check_hook "GET /ping?subject=Actual+Budget+Backup+Failed"
+check_hook "GET /ping?subject=Actual%20Budget%20Backup%20Failed"
 check_hook "with 1 error(s)"
 check_health retention-nothing 1
 echo "  a backup that uploads nothing deletes nothing, sends the failure notification and is unhealthy"
@@ -304,7 +304,7 @@ fi
 backup_file retention-failed "${PLAIN_ID}" zip > /dev/null
 [[ -f "${WORK}/retention-failed/${OLD_FAILED}" ]] ||
     { show_log retention-failed; fail "a backup with errors deleted ${OLD_FAILED}"; }
-check_hook "GET /ping?subject=Actual+Budget+Backup+Failed"
+check_hook "GET /ping?subject=Actual%20Budget%20Backup%20Failed"
 check_hook "with 1 error(s)"
 check_health retention-failed 1
 echo "  a backup with errors uploads the other budget, deletes nothing and is unhealthy"

@@ -23,7 +23,7 @@ A backup counts as failed when any budget fails to download, is corrupt, fails t
 
 A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it, or [old backups](configuration.md#retention) could not be deleted. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
 
-URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens.
+URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens. The `shoutrrr` command can only take the URL as an argument, so it does show up in `ps` on the host while a notification is sent.
 
 > **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs, so no notification is sent.
 

@@ -38,7 +38,9 @@ The URL and the curl options can contain these placeholders:
 | `%{subject}` | `Actual Budget Backup Success` |
 | `%{content}` | `Backup finished at 2026-10-21 16:30:32 UTC. 1 budget(s) uploaded to 1 remote(s).` |
 
-In URLs, spaces are replaced with `+`.
+In URLs, the text is percent-encoded, e.g. a space becomes `%20`. In curl options it is passed as is, as one argument: it is never read by the shell, so quotes and `$` in it are safe.
+
+The URL is passed to curl on its standard input (`-K -`), so it doesn't show up in `ps`. Curl options can't read from standard input too, e.g. `-d @-`.
 
 <br>
 
