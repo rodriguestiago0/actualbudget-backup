@@ -71,7 +71,8 @@ function clear_stale_work_dirs() {
 }
 
 function configure_healthcheck() {
-    printf 'start=%s\nmax_hours=%s\n' "$(date +%s)" "${HEALTHCHECK_MAX_HOURS}" > "${HEALTH_FILE}"
+    printf 'start=%s\nmax_hours=%s\nlast_backup_file=%s\n' \
+        "$(date +%s)" "${HEALTHCHECK_MAX_HOURS}" "${LAST_BACKUP_FILE}" > "${HEALTH_FILE}"
 }
 
 init_env

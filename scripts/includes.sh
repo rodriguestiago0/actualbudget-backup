@@ -6,7 +6,8 @@
 ENV_FILE="${ENV_FILE:-"/.env"}"
 CRON_CONFIG_FILE="${HOME}/crontabs"
 # result of the last backup, for the Docker health check. In /config when it
-# is mounted, so it outlives the container
+# is mounted, so it outlives the container; init_env names it after the
+# configuration there, see init_last_backup_file
 if [[ -d /config ]]; then
     LAST_BACKUP_FILE="/config/last-backup"
 else
@@ -635,6 +636,24 @@ function init_actual_env(){
 }
 
 ########################################
+# Name the status file in /config after the Actual server and budgets, so
+# containers that share the rclone volume, e.g. one per server, don't
+# overwrite each other's health state. The entrypoint passes the name on to
+# the health check.
+# Arguments:
+#     None
+########################################
+function init_last_backup_file() {
+    if [[ "${LAST_BACKUP_FILE}" != "/config/last-backup" ]]; then
+        return
+    fi
+
+    local KEY
+    KEY="$(printf '%s ' "${ACTUAL_BUDGET_URL}" "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}" | sha256sum | cut -c1-12)"
+    LAST_BACKUP_FILE="/config/last-backup.${KEY}"
+}
+
+########################################
 # Initialization environment variables.
 # Arguments:
 #     None
@@ -734,6 +753,7 @@ function init_env() {
     export TZ="${TIMEZONE}"
 
     init_actual_env
+    init_last_backup_file
 
     color yellow "========================================"
     color yellow "CRON: ${CRON}"

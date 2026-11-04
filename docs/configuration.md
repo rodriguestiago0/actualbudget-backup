@@ -68,7 +68,7 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`TIMEZONE`**: a [timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) such as `Europe/Lisbon`. It sets when `CRON` runs, the times in the log and notifications, and the date in file names. `TZ` works too; when both are set, `TIMEZONE` wins. An unknown name is logged and UTC is used.
 
-**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`), the default is `26`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup`, so it outlives the container.
+**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`), the default is `26`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup.<id>`, so it outlives the container. The `<id>` comes from `ACTUAL_BUDGET_URL` and the sync IDs, so containers that share the rclone volume, e.g. one per Actual server, each have their own.
 
 <br>
 
