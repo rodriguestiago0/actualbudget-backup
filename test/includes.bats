@@ -240,3 +240,122 @@ ENV
     [[ -z "$(bash -c 'echo "${ZIP_PASSWORD}${ACTUAL_BUDGET_E2E_PASSWORD_1}${DOTENV_X}"')" ]]
     [[ "$(bash -c 'echo "${RCLONE_CONFIG_A_TYPE}"')" == "local" ]]
 }
+
+@test "version_lt compares versions numerically" {
+    version_lt 26.3.0 26.10.0
+    version_lt 26.10.0 26.11.0
+    version_lt 25.12.9 26.0.0
+    version_lt v26.10.0 26.11.0
+    version_lt 26.10 26.10.1
+    ! version_lt 26.11.0 26.11.0
+    ! version_lt 26.11.0-nightly.20261021 26.11.0
+    ! version_lt 26.12.0 26.11.0
+    ! version_lt unknown 26.11.0
+}
+
+@test "cron_runs_daily accepts full ranges and tells hourly schedules" {
+    cron_runs_daily "0 3 * * 0-6"
+    cron_runs_daily "0 3 * * sun-sat"
+    cron_runs_daily "0 3 1-31 JAN-DEC 0-7"
+    ! cron_runs_daily "0 3 * * MON-SUN"
+    ! cron_runs_daily "0 3 * * 1-5"
+    ! cron_runs_daily "0 3 1-12 * *"
+    cron_runs_daily "@hourly" hourly
+    cron_runs_daily "15 * * * *" hourly
+    cron_runs_daily "0 15 0-23 * * * *" hourly
+    ! cron_runs_daily "@daily" hourly
+    ! cron_runs_daily "0 */2 * * *" hourly
+    result=$(export ACTUAL_BUDGET_URL="https://actual" ACTUAL_BUDGET_SYNC_ID="id" CRON="5 * * * *"; init_env > /dev/null; echo "${HEALTHCHECK_MAX_HOURS}")
+    [[ "$result" == "3" ]]
+}
+
+@test "export_env_file ends a double-quoted value at its closing quote" {
+    ENV_FILE="${BATS_TEST_TMPDIR}/.env"
+    cat > "${ENV_FILE}" <<'ENV'
+A="x" # "y"
+B="a\"b" # c
+C="a\$b\`c"
+ENV
+    export_env_file > /dev/null
+    [[ "${DOTENV_A}" == "x" ]]
+    [[ "${DOTENV_B}" == 'a"b' ]]
+    [[ "${DOTENV_C}" == 'a$b`c' ]]
+}
+
+@test "send_ping passes the text as is to options and encoded in the URL, the URL on stdin" {
+    curl() { printf '[%s]' "$@"; echo; cat; }
+    PING_URL='https://hc/ping?s=%{subject}&c=%{content}'
+    PING_URL_CURL_OPTIONS='-d "%{content}" -H "Title: %{subject}"'
+    result=$(send_ping completion "Backup Success" 'x $(echo INJECTED) "q" +0530 & é')
+    [[ "$result" == *'[-d][x $(echo INJECTED) "q" +0530 & é][-H][Title: Backup Success][-K][-]'* ]]
+    [[ "$result" == *'url = "https://hc/ping?s=Backup%20Success&c=x%20%24%28echo%20INJECTED%29%20%22q%22%20%2B0530%20%26%20%C3%A9"'* ]]
+    [[ "$result" != *"https://hc"*"[-K]"* ]]
+}
+
+@test "clear_history deletes only old backups and warns when that fails" {
+    eval "$(sed -n '/^function clear_history/,/^}/p' "$BATS_TEST_DIRNAME/../scripts/backup.sh")"
+    rclone() { echo "rclone $*"; [[ "$2" != bad:* ]]; }
+    send_notification() { echo "notify $1: $2"; }
+    FAILED_COUNT=0 BACKUP_KEEP_DAYS=7 RCLONE_GLOBAL_FLAG=""
+    RCLONE_REMOTE_LIST=("good:/b" "bad:/b")
+    result=$(clear_history)
+    [[ "$result" == *"rclone delete good:/b --max-depth 1 --include backup.*.{zip,7z,tar} --min-age 7d -v"* ]]
+    [[ "$result" == *"notify warning: Old backups could not be deleted from: bad:/b."* ]]
+    [[ "$result" != *"from: good"* ]]
+
+    FAILED_COUNT=1
+    [[ "$(clear_history)" != *"rclone delete"* ]]
+}
+
+########################################
+# Stubs for running backup.sh: an actual whose download waits for the file
+# named in STUB_WAIT, and an rclone with one remote "e2e".
+########################################
+function stub_backup_tools() {
+    mkdir -p "${BATS_TEST_TMPDIR}/bin"
+    cat > "${BATS_TEST_TMPDIR}/bin/actual" <<'STUB'
+#!/bin/bash
+case "$*" in
+    --version) echo 26.11.0 ;;
+    *"server version"*) echo '{"version": "26.11.0"}' ;;
+    *download*) touch "${STUB_DIR}/downloading"; sleep 2; exit 1 ;;
+esac
+STUB
+    cat > "${BATS_TEST_TMPDIR}/bin/rclone" <<'STUB'
+#!/bin/bash
+[[ "$1" == listremotes ]] && echo "e2e:"
+exit 0
+STUB
+    chmod +x "${BATS_TEST_TMPDIR}/bin/"*
+}
+
+function run_stubbed_backup() {
+    # exec, so a backgrounded call's PID is backup.sh itself
+    exec env HOME="${BATS_TEST_TMPDIR}" PATH="${BATS_TEST_TMPDIR}/bin:${PATH}" STUB_DIR="${BATS_TEST_TMPDIR}" \
+        ACTUAL_BUDGET_URL="http://actual" ACTUAL_BUDGET_SYNC_ID="id" RCLONE_REMOTE_NAME="e2e" \
+        bash "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+}
+
+@test "a backup stopped by SIGTERM is reported as stopped, not as a success" {
+    stub_backup_tools
+    (run_stubbed_backup) > "${BATS_TEST_TMPDIR}/log" 2>&1 &
+    local PID=$!
+    for _ in $(seq 50); do [[ -f "${BATS_TEST_TMPDIR}/downloading" ]] && break; sleep 0.1; done
+    kill -TERM "${PID}"
+    local STATUS=0
+    wait "${PID}" || STATUS=$?
+    [[ ${STATUS} -eq 143 ]]
+    grep -q "^failed: the last backup was stopped" "${BATS_TEST_TMPDIR}/last-backup"
+}
+
+@test "a second backup with the same settings is skipped while one runs" {
+    stub_backup_tools
+    exec 8>> "${BATS_TEST_TMPDIR}/last-backup.lock"
+    flock -n 8
+    run run_stubbed_backup
+    exec 8>&-
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"another backup with this configuration is running"* ]]
+    [[ ! -e "${BATS_TEST_TMPDIR}/last-backup" ]]
+    [[ ! -e "${BATS_TEST_TMPDIR}/downloading" ]]
+}

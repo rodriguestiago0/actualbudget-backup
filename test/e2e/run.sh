@@ -7,6 +7,9 @@
 #               as AES zips; both are loaded back and compared with the
 #               server, and the notification and ping are sent
 #   7z, tar     the other archive types
+#   puid        as PUID/PGID instead of --user, with the settings in /.env,
+#               the password from a _FILE secret, and a second remote that
+#               can't be reached: the first still gets the backup
 #   retention   BACKUP_KEEP_DAYS deletes only old backup files, and nothing
 #               after a failed backup (one that uploads nothing, and one where
 #               only one budget fails), which sends the failure notification
@@ -262,6 +265,37 @@ echo "tar"
 run_backup tar -e ZIP_ENABLE=FALSE -e RCLONE_REMOTE_DIR=/work/tar ||
     { show_log tar; fail "the tar backup failed"; }
 check_backup "$(backup_file tar "${PLAIN_ID}" tar)" "${PLAIN_ID}" ""
+
+#################### puid, .env, _FILE, dead remote ####################
+
+echo "puid: PUID, a .env file, a _FILE secret and an unreachable remote"
+printf '%s\n' "${PASSWORD}" > "${WORK}/password"
+cat > "${WORK}/puid.env" <<ENV
+ACTUAL_BUDGET_URL='${SERVER_URL}'
+ACTUAL_BUDGET_PASSWORD_FILE=/work/password
+ACTUAL_BUDGET_SYNC_ID='${PLAIN_ID}'
+RCLONE_REMOTE_NAME=e2e
+RCLONE_REMOTE_DIR=/work/puid
+# read-only and missing, so it can neither be listed nor created
+RCLONE_REMOTE_NAME_1=e2e
+RCLONE_REMOTE_DIR_1=/app/e2e/missing
+PUID=$(id -u)
+PGID=$(id -g)
+ENV
+# not in_image: it must start as root to switch to PUID itself
+if docker run --rm --network "${NAME}" -e RCLONE_CONFIG_E2E_TYPE=local \
+    -v "${HERE}:/app/e2e:ro" -v "${WORK}:/work" -v "${WORK}/puid.env:/.env:ro" \
+    "${IMAGE}" backup > "${WORK}/puid.log" 2>&1; then
+    show_log puid
+    fail "a backup with an unreachable remote succeeded"
+fi
+grep -qF "running as $(id -u):$(id -g)" "${WORK}/puid.log" || { show_log puid; fail "the backup did not switch to PUID"; }
+grep -qF "some storage system connections failed, but the backup will continue" "${WORK}/puid.log" ||
+    { show_log puid; fail "the unreachable remote was not reported"; }
+FILE="$(backup_file puid "${PLAIN_ID}" zip)"
+[[ "$(stat -c %u "${WORK}/${FILE}")" == "$(id -u)" ]] || fail "${FILE} does not belong to PUID $(id -u)"
+check_backup "${FILE}" "${PLAIN_ID}" ""
+echo "  backed up as PUID from .env and _FILE, despite the unreachable remote"
 
 #################### retention ####################
 
