@@ -1,24 +1,29 @@
 #!/bin/bash
 # Plans the next release from the first-parent commits since the last tag.
 #
-# A commit is released when it changes the image. Markers in its message
-# (the PR title, for merge and squash merges) change that:
+# A commit is released when it changes what users get: the image, or the
+# systemd units that native installs copy from the release tag. Markers in
+# its message change that; put them in the PR title, which GitHub copies into
+# both merge and squash commits:
 #   [skip release]   not released on its own
 #   [minor]/[major]  bump that part instead of the patch version
 # A change of the @actual-app/cli minor or major version also bumps the minor
 # version, since backups then need a newer Actual to import.
 #
-# Usage: release-plan.sh
+# Usage: release-plan.sh [notes file]
 # Prints, as key=value lines (for $GITHUB_OUTPUT):
 #   image=true      some commit since the last tag changes the image
 #   release=true    something is to be released
 #   bump=patch|minor|major
 #   latest_tag=v1.2.3
+# and writes the released commits to the notes file, one "- subject" line
+# each.
 
 set -euo pipefail
 
 IMAGE_PATHS='^(Dockerfile|\.dockerignore|package(-lock)?\.json|scripts/)'
-RELEASE_PATHS="${IMAGE_PATHS}"
+RELEASE_PATHS='^(Dockerfile|\.dockerignore|package(-lock)?\.json|scripts/|systemd/)'
+NOTES="${1:-/dev/null}"
 
 ########################################
 # The major.minor of the Actual CLI in a commit, or nothing.
@@ -40,10 +45,17 @@ echo "Latest tag: ${LATEST_TAG}" >&2
 IMAGE=false
 RELEASE=false
 BUMP="patch"
+: > "${NOTES}"
 
 for COMMIT in $(git rev-list --first-parent "${RANGE}"); do
     MSG="$(git log -1 --format=%B "${COMMIT}")"
     SUBJECT="$(git log -1 --format=%s "${COMMIT}")"
+    # a merge commit's subject is "Merge pull request #N from ...", its body
+    # starts with the PR title
+    if [[ "${SUBJECT}" =~ ^Merge\ pull\ request\ (#[0-9]+) ]]; then
+        TITLE="$(git log -1 --format=%b "${COMMIT}" | sed -n '/./{p;q;}')"
+        SUBJECT="${TITLE:-${SUBJECT}} (${BASH_REMATCH[1]})"
+    fi
     FILES="$(git diff --name-only "${COMMIT}^1" "${COMMIT}" 2> /dev/null || git show --name-only --format= "${COMMIT}")"
 
     if grep -qE "${IMAGE_PATHS}" <<< "${FILES}"; then
@@ -54,11 +66,12 @@ for COMMIT in $(git rev-list --first-parent "${RANGE}"); do
         continue
     fi
     if ! grep -qE "${RELEASE_PATHS}" <<< "${FILES}"; then
-        echo "Skipped (image unchanged): ${SUBJECT}" >&2
+        echo "Skipped (nothing released changed): ${SUBJECT}" >&2
         continue
     fi
 
     echo "Included: ${SUBJECT}" >&2
+    echo "- ${SUBJECT}" >> "${NOTES}"
     RELEASE=true
     if grep -q '\[major\]' <<< "${MSG}"; then
         BUMP="major"

@@ -148,8 +148,10 @@ jobs:
 
   # Releases everything merged since the last tag, not only this commit:
   # when a newer push cancels this run's build, the newer run releases it.
-  # Commits marked [skip release], or that don't change what goes into the
-  # image (docs, tests, CI), are not released on their own.
+  # Commits marked [skip release], or that change neither the image nor the
+  # systemd units (docs, tests, CI), are not released on their own; see
+  # .github/scripts/release-plan.sh and .github/CONTRIBUTING.md. The release
+  # is created as a draft and only published once its image is.
   release:
     needs: [test, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -177,7 +179,7 @@ jobs:
           fi
 
           # see the script for what is released and the version markers
-          .github/scripts/release-plan.sh > "$RUNNER_TEMP/plan"
+          .github/scripts/release-plan.sh "$RUNNER_TEMP/changes.md" > "$RUNNER_TEMP/plan"
           RELEASE=$(sed -n 's/^release=//p' "$RUNNER_TEMP/plan")
           BUMP=$(sed -n 's/^bump=//p' "$RUNNER_TEMP/plan")
           LATEST_TAG=$(sed -n 's/^latest_tag=//p' "$RUNNER_TEMP/plan")
@@ -219,18 +221,28 @@ jobs:
           fi
 
           echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      # Only the released changes, not every PR merged since the last tag
+      - name: Create a draft GitHub Release
         if: steps.bump.outputs.new_tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.bump.outputs.new_tag }}
+          PREVIOUS_TAG: ${{ steps.bump.outputs.previous_tag }}
+          REPO: ${{ github.repository }}
         run: |
           CLI_VERSION=$(jq -r '.packages["node_modules/@actual-app/cli"].version' package-lock.json)
-          gh release create "$NEW_TAG" \
-            --title "$NEW_TAG" \
-            --notes "Built with @actual-app/cli ${CLI_VERSION}: backups import into Actual ${CLI_VERSION} or newer." \
-            --generate-notes
+          {
+            echo "Built with @actual-app/cli ${CLI_VERSION}: backups import into Actual ${CLI_VERSION} or newer."
+            echo
+            echo "## Changes"
+            echo
+            cat "$RUNNER_TEMP/changes.md"
+            echo
+            echo "**Full changelog**: https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$NEW_TAG" --draft --title "$NEW_TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
   # A release created with GITHUB_TOKEN does not trigger other workflows, so
   # the `release: published` event in docker-image.yml never fires for it.
@@ -247,3 +259,18 @@ jobs:
       contents: read
       attestations: write
       id-token: write
+
+  # Publishes the draft release once its image is on Docker Hub, so a
+  # release never points at an image that failed to push
+  finish-release:
+    needs: [release, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ needs.release.outputs.tag }}
+        run: gh release edit "$NEW_TAG" -R "$GITHUB_REPOSITORY" --draft=false --latest
