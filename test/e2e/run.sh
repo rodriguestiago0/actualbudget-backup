@@ -11,6 +11,10 @@
 #               after a failed backup (one that uploads nothing, and one where
 #               only one budget fails), which sends the failure notification
 #               and makes the health check fail
+#   import      a zip without a password, of both budgets, imported through
+#               Actual's own importer (Import file > Actual)
+#   old server  a backup from an older actual-server (OLD_SERVER_VERSION) still
+#               imports, and sends the old-server warning
 #
 # Usage: test/e2e/run.sh [image]   (default: actualbudget-backup:ci)
 
@@ -20,6 +24,11 @@ IMAGE="${1:-actualbudget-backup:ci}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAME="actualbudget-backup-e2e-$$"
 SERVER_URL="http://${NAME}-server:5006"
+# The previous minor before the bundled CLI (26.11.0): the usual server of a
+# user whose image updated first. Pinned, so it gets older as the CLI moves on;
+# bump it when the CLI no longer supports it.
+OLD_SERVER_VERSION=26.10.0
+OLD_SERVER_URL="http://${NAME}-old-server:5006"
 HOOK_URL="${NAME}-hook:8080"
 PASSWORD='e2e-password'
 E2E_PASSWORD='budget e2e secret'
@@ -29,7 +38,7 @@ WORK="$(mktemp -d)"
 CHECKS=0
 
 function cleanup() {
-    docker rm -f "${NAME}-server" "${NAME}-hook" > /dev/null 2>&1 || true
+    docker rm -f "${NAME}-server" "${NAME}-old-server" "${NAME}-hook" > /dev/null 2>&1 || true
     docker network rm "${NAME}" > /dev/null 2>&1 || true
     rm -rf "${WORK}"
 }
@@ -138,6 +147,36 @@ function check_backup() {
     e2e compare /app/e2e/budget.json "/work/${DIR}/server.json" "/work/${DIR}/backup.json"
 }
 
+########################################
+# Import a zip backup through Actual's importer and check it holds the same
+# budget as the server.
+# Arguments:
+#     zip backup without a password, under ${WORK}
+#     sync id
+#     e2e password of the budget, or empty
+########################################
+function check_import() {
+    local DIR="check-$((++CHECKS))"
+    mkdir "${WORK}/${DIR}"
+
+    e2e snapshot-server "$2" "/work/${DIR}/server.json" "$3" > /dev/null
+    e2e import-backup "/work/$1" "/work/${DIR}/import.json" > /dev/null ||
+        fail "Actual could not import $1"
+    echo -n "  $1 imported: "
+    e2e compare /app/e2e/budget.json "/work/${DIR}/server.json" "/work/${DIR}/import.json"
+}
+
+########################################
+# Wait for a server started by `docker run` and set its password.
+# Globals:
+#     SERVER_URL   the server
+########################################
+function bootstrap_server() {
+    wait_for "${SERVER_URL}/info"
+    in_image --entrypoint curl "${IMAGE}" -fsS -o /dev/null -H 'Content-Type: application/json' \
+        -d "{\"password\":\"${PASSWORD}\"}" "${SERVER_URL}/account/bootstrap"
+}
+
 function check_method() {
     in_image --entrypoint 7z "${IMAGE}" l -slt -p"${ZIP_PASSWORD}" "/work/$1" | grep -q "^Method = .*$2" ||
         fail "$1 is not encrypted with $2"
@@ -155,6 +194,8 @@ echo "Actual CLI ${CLI_VERSION}, starting actualbudget/actual-server:${CLI_VERSI
 
 docker network create "${NAME}" > /dev/null
 docker run -d --name "${NAME}-server" --network "${NAME}" "actualbudget/actual-server:${CLI_VERSION}" > /dev/null
+# started now so it boots alongside; its scenario is at the end
+docker run -d --name "${NAME}-old-server" --network "${NAME}" "actualbudget/actual-server:${OLD_SERVER_VERSION}" > /dev/null
 
 # records every request, for the notification and ping checks
 touch "${WORK}/hooks.log"
@@ -169,11 +210,8 @@ docker run -d --name "${NAME}-hook" --network "${NAME}" --user "$(id -u):$(id -g
             });
         }).listen(8080);" > /dev/null
 
-wait_for "${SERVER_URL}/info"
+bootstrap_server
 wait_for "http://${HOOK_URL}/ready"
-
-in_image --entrypoint curl "${IMAGE}" -fsS -o /dev/null -H 'Content-Type: application/json' \
-    -d "{\"password\":\"${PASSWORD}\"}" "${SERVER_URL}/account/bootstrap"
 
 echo "seeding the test budgets"
 e2e seed /app/e2e/budget.json /work/plain-id "E2E Plain" > /dev/null
@@ -279,5 +317,49 @@ run_backup retention -e BACKUP_KEEP_DAYS=1 -e RCLONE_REMOTE_DIR=/work/retention 
 backup_file retention "${PLAIN_ID}" zip > /dev/null
 check_health retention 0
 echo "  only the old backup was deleted, and the next backup is healthy"
+
+#################### import ####################
+
+echo "import: a zip without a password, through Actual's importer"
+run_backup import \
+    -e ACTUAL_BUDGET_SYNC_ID_1="${ENCRYPTED_ID}" \
+    -e ACTUAL_BUDGET_E2E_PASSWORD_1="${E2E_PASSWORD}" \
+    -e RCLONE_REMOTE_DIR=/work/import ||
+    { show_log import; fail "the import backup failed"; }
+check_import "$(backup_file import "${PLAIN_ID}" zip)" "${PLAIN_ID}" ""
+check_import "$(backup_file import "${ENCRYPTED_ID}" zip)" "${ENCRYPTED_ID}" "${E2E_PASSWORD}"
+
+#################### old server ####################
+
+########################################
+# Back up a budget from the older server, check it imports and that the
+# old-server warning is sent. A function, so SERVER_URL and PLAIN_ID point at
+# that server only here.
+########################################
+function old_server_scenario() {
+    local SERVER_URL="${OLD_SERVER_URL}"
+    local PLAIN_ID
+
+    echo "old server: actual-server ${OLD_SERVER_VERSION}, older than the CLI ${CLI_VERSION}"
+    version_older "${OLD_SERVER_VERSION}" "${CLI_VERSION}" ||
+        fail "OLD_SERVER_VERSION ${OLD_SERVER_VERSION} is not older than the CLI ${CLI_VERSION}"
+    bootstrap_server
+    e2e seed /app/e2e/budget.json /work/old-plain-id "E2E Old Server" > /dev/null
+    PLAIN_ID="$(cat "${WORK}/old-plain-id")"
+
+    : > "${WORK}/hooks.log"
+    run_backup old-server -e RCLONE_REMOTE_DIR=/work/old-server "${NOTIFY[@]}" ||
+        { show_log old-server; fail "the backup from actual-server ${OLD_SERVER_VERSION} failed"; }
+    check_import "$(backup_file old-server "${PLAIN_ID}" zip)" "${PLAIN_ID}" ""
+    check_hook "older than the Actual CLI"
+    check_health old-server 0
+    echo "  the old-server warning was sent"
+}
+
+function version_older() {
+    [[ "$1" != "$2" && "$(printf '%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]]
+}
+
+old_server_scenario
 
 echo "all end-to-end checks passed"
