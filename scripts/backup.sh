@@ -64,7 +64,9 @@ function archive_budget() {
 # Arguments:
 #     db.sqlite path
 # Returns:
-#     0 if it is fine or the check cannot run, 1 if it is corrupt
+#     0 if it is fine or better-sqlite3 is not installed, 1 if it is
+#     corrupt, 4 if better-sqlite3 cannot load (a problem of the install or
+#     image, not of the budget)
 ########################################
 function check_database() {
     local STATUS=0
@@ -76,6 +78,13 @@ function check_database() {
             Database = require("module").createRequire(process.env.NODE_MODULES + "/")("better-sqlite3");
         } catch {
             process.exit(3);
+        }
+        // the native binding only loads when a database is opened
+        try {
+            new Database(":memory:").close();
+        } catch (error) {
+            console.error(error.message);
+            process.exit(4);
         }
         let result;
         try {
@@ -156,14 +165,20 @@ function download_budget() {
         return 1
     fi
 
-    if ! check_database "${BUDGET_DIR}/db.sqlite"; then
+    local STATUS=0
+    check_database "${BUDGET_DIR}/db.sqlite" || STATUS=$?
+    if [[ ${STATUS} -eq 4 ]]; then
+        color red "the database check could not load better-sqlite3, so \"${SYNC_ID}\" could not be checked. This is a problem of the image or install, not of your budget: please report it"
+        rm -rf "${DATA_DIR}"
+        return 1
+    elif [[ ${STATUS} -ne 0 ]]; then
         color red "the downloaded budget is corrupt \"${SYNC_ID}\""
         rm -rf "${DATA_DIR}"
         return 1
     fi
 
     archive_budget "${BUDGET_DIR}" "${BACKUP_FILE_ZIP}"
-    local STATUS=$?
+    STATUS=$?
     rm -rf "${DATA_DIR}"
 
     if [[ ${STATUS} -ne 0 || ! -s "${BACKUP_FILE_ZIP}" ]]; then

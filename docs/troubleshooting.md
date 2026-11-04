@@ -72,6 +72,10 @@ The Actual server can't be reached, or its HTTPS certificate isn't trusted.
 
 The encryption password is missing or wrong. Each budget reads its own `ACTUAL_BUDGET_E2E_PASSWORD_N`, see [encrypted budgets](e2e-encrypted-backups.md).
 
+#### `the database check could not load better-sqlite3`
+
+The SQLite module that checks each download doesn't work in this image or install, so no budget can be checked and every backup fails. Your budgets are fine. [Open an issue](https://github.com/rodriguestiago0/actualbudget-backup/issues) with the log and your platform (`uname -m`); without Docker, run `npm ci --omit=dev` again in the install folder.
+
 #### `download failed` after 15 minutes
 
 Each call to the Actual server is stopped after 15 minutes, so a server that stops answering can't block the later backups. Check that the server is up and responds.
