@@ -144,6 +144,7 @@ function download_budget() {
         # pass secrets through the environment so they don't show up in `ps`
         if ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
             ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
+            ACTUAL_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN}" \
             ACTUAL_ENCRYPTION_PASSWORD="$2" \
             timeout "${ACTUAL_TIMEOUT_SECONDS}" actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
             break
@@ -206,6 +207,7 @@ function check_server_version() {
     CLI_VERSION="$(actual --version 2> /dev/null)"
     SERVER_VERSION="$(ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
         ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
+        ACTUAL_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN}" \
         timeout "${ACTUAL_TIMEOUT_SECONDS}" actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
 
     if [[ -z "${SERVER_VERSION}" ]]; then

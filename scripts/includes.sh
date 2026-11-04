@@ -450,7 +450,7 @@ function unexport_secrets() {
 
     for VAR in $(compgen -e)
     do
-        if [[ "${VAR}" =~ ^(DOTENV_.*|ACTUAL_BUDGET_PASSWORD|ACTUAL_BUDGET_E2E_PASSWORD.*|ZIP_PASSWORD|NOTIFICATION_URLS|PING_URL.*)$ ]]; then
+        if [[ "${VAR}" =~ ^(DOTENV_.*|ACTUAL_BUDGET_PASSWORD|ACTUAL_BUDGET_SESSION_TOKEN|ACTUAL_SESSION_TOKEN|ACTUAL_BUDGET_E2E_PASSWORD.*|ZIP_PASSWORD|NOTIFICATION_URLS|PING_URL.*)$ ]]; then
             # shellcheck disable=SC2163 # un-exports the variable named in VAR
             export -n "${VAR}"
         fi
@@ -557,6 +557,14 @@ function init_actual_env(){
     get_env ACTUAL_BUDGET_PASSWORD
     ACTUAL_BUDGET_PASSWORD="${ACTUAL_BUDGET_PASSWORD:-""}"
     color yellow "ACTUAL_BUDGET_PASSWORD: *****"
+
+    # instead of the password, for servers with OpenID login; falls back to
+    # the Actual CLI's own variable, which older releases passed on as is
+    get_env ACTUAL_BUDGET_SESSION_TOKEN
+    ACTUAL_BUDGET_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN:-"${ACTUAL_SESSION_TOKEN:-}"}"
+    if [[ -n "${ACTUAL_BUDGET_SESSION_TOKEN}" ]]; then
+        color yellow "ACTUAL_BUDGET_SESSION_TOKEN: *****"
+    fi
 
     get_env ACTUAL_BUDGET_SYNC_ID
 

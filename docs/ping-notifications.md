@@ -23,7 +23,7 @@ Pings are sent with `curl -m 15 --retry 10 --retry-delay 1 -fsS`. A failed ping 
 
 Like the other variables, they can also be set with a `_FILE` suffix or in the `.env` file. The log only shows which pings are set, not their URLs, since URLs often contain tokens. Set `PING_DEBUG: 'TRUE'` to print the full curl commands.
 
-A backup counts as failed when any budget fails to download or archive, or any upload fails. The container exits with status `1` in that case.
+A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails. Old backups that can't be deleted don't make it fail; they send a [`warning`](notifications.md) instead. The container exits with status `1` when the backup failed.
 
 > **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs, so no ping is sent. Health check services detect this through the missing ping.
 

@@ -2,7 +2,7 @@
 
 Backs up [Actual Budget](https://actualbudget.org) on a schedule to any storage [Rclone](https://rclone.org/) supports: S3, Backblaze B2, Google Drive, OneDrive, Dropbox, SFTP, a local folder and [many more](https://rclone.org/overview/).
 
-Budgets are downloaded with the official [Actual CLI](https://actualbudget.org/docs/api/cli/) and saved as zip files that Actual can import directly.
+Budgets are downloaded with the official [Actual CLI](https://actualbudget.org/docs/api/cli/) and saved as zip files that Actual can import directly (without a `ZIP_PASSWORD`).
 
 - Back up several budgets, including end-to-end encrypted ones, to one or more destinations
 - Optional password-protected `zip` or `7z` archives

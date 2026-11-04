@@ -1,12 +1,13 @@
 # Configuration
 
-All settings are environment variables. Only the first three are required.
+All settings are environment variables. Only the first three are required, and the password can be replaced by a session token.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | [`ACTUAL_BUDGET_URL`](#actual-server) | | **Required.** Address of the Actual server |
-| [`ACTUAL_BUDGET_PASSWORD`](#actual-server) | | **Required.** Actual server password |
+| [`ACTUAL_BUDGET_PASSWORD`](#actual-server) | | **Required**, unless `ACTUAL_BUDGET_SESSION_TOKEN` is set. Actual server password |
 | [`ACTUAL_BUDGET_SYNC_ID`](#actual-server) | | **Required.** Sync ID of the budget |
+| [`ACTUAL_BUDGET_SESSION_TOKEN`](#actual-server) | | Session token instead of the password, for servers with OpenID login |
 | [`ACTUAL_BUDGET_E2E_PASSWORD`](#actual-server) | | Encryption password, for an end-to-end encrypted budget |
 | [`RCLONE_REMOTE_NAME`](#destination) | `ActualBudgetBackup` | rclone remote to upload to |
 | [`RCLONE_REMOTE_DIR`](#destination) | `/ActualBudgetBackup/` | Folder on the remote |
@@ -33,6 +34,8 @@ Several budgets and destinations use numbered variables, see [several budgets](m
 **`ACTUAL_BUDGET_URL`**: the address of your Actual server, including `http://` or `https://`, e.g. `https://actual.example.com`. `localhost` is the backup container itself, not your machine. When Actual runs in Docker on the same host, put both containers on one network and use Actual's container name, e.g. `http://actual_server:5006`. For a server with a self-signed certificate, see [troubleshooting](troubleshooting.md#authentication-failed-network-failure).
 
 **`ACTUAL_BUDGET_PASSWORD`**: the password you log in to Actual with.
+
+**`ACTUAL_BUDGET_SESSION_TOKEN`**: for a server that uses OpenID login and has no password, a session token for the [Actual CLI](https://actualbudget.org/docs/api/cli/) instead. When both are set, the token is used. `ACTUAL_SESSION_TOKEN`, the CLI's own name, works too.
 
 **`ACTUAL_BUDGET_SYNC_ID`**: the budget to back up. In Actual, open **Settings**, click **Show advanced settings**, and copy the **Sync ID**.
 
@@ -128,7 +131,7 @@ services:
       - ./backup.env:/.env:ro
 ```
 
-Put one `NAME=value` per line. Values are read literally, nothing is expanded or run. Quote values with spaces or special characters, such as passwords, in single quotes: `ACTUAL_BUDGET_PASSWORD='pa$$ word'`. A value that contains a single quote can go in double quotes, where `\"` and `\\` are escapes. In an unquoted value, ` #` starts a comment.
+Put one `NAME=value` per line. Values are read literally, nothing is expanded or run. Quote values with spaces or special characters, such as passwords, in single quotes: `ACTUAL_BUDGET_PASSWORD='pa$$ word'`. A value that contains a single quote can go in double quotes, where `\"`, `\\`, `\$` and `` \` `` are escapes for `"`, `\`, `$` and `` ` ``. In an unquoted value, ` #` starts a comment.
 
 ### From files (Docker secrets)
 

@@ -19,4 +19,4 @@ This uploads to `ActualBudgetBackup:/ActualBudgetBackup/`, `nas:/backups/actual/
 
 The numbers must follow each other: reading stops at the first number with a missing name or folder. The log lists every destination it found.
 
-At startup, every destination must be reachable or the container stops. When a backup runs, it continues if at least one destination works, and is reported as failed. [`BACKUP_KEEP_DAYS`](configuration.md#retention) applies to every destination.
+At startup, every destination must be configured in rclone or the container stops; one that is unreachable is only a warning. When a backup runs, it continues if at least one destination works, and is reported as failed. [`BACKUP_KEEP_DAYS`](configuration.md#retention) applies to every destination.

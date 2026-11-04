@@ -19,7 +19,7 @@ For health check services such as healthchecks.io, use [ping notifications](ping
 
 Each message has a title, such as `✅ Actual Budget Backup Success`, and a text, such as `Backup finished at 2026-10-21 16:30:32 UTC. 1 budget(s) uploaded to 1 remote(s).`
 
-A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails.
+A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails. Old backups that can't be deleted don't make it fail; they send a `warning` instead.
 
 A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it, or [old backups](configuration.md#retention) could not be deleted. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
 
