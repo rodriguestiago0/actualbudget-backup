@@ -10,7 +10,7 @@ Budgets are downloaded with the official [Actual CLI](https://actualbudget.org/d
 - Notifications to Telegram, Discord, ntfy, email and more, and pings to health check services
 - Runs as a Docker container, from a systemd timer, or without Docker
 
-Images are on Docker Hub as [`rodriguestiago0/actualbudget-backup`](https://hub.docker.com/r/rodriguestiago0/actualbudget-backup), tagged `latest`, by version (`v1.2.3`), by major or minor version (`v1`, `v1.2`, which follow the newest release) and by the bundled [Actual CLI version](docs/configuration.md#actual-cli-version) (`actual-26.11.0`, `actual-26.11`), for `linux/amd64`, `linux/arm64`, `linux/arm/v7` and `linux/arm/v6`.
+Images are on Docker Hub as [`rodriguestiago0/actualbudget-backup`](https://hub.docker.com/r/rodriguestiago0/actualbudget-backup), tagged `latest`, by version (`v1.2.3`), by major or minor version (`v1`, `v1.2`, which follow the newest release) and by the bundled [Actual CLI version](docs/configuration.md#actual-cli-version) (`actual-26.11.0`, `actual-26.11`), for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. `linux/arm/v6` images stopped at `v1.1.5`.
 
 Inspired by [vaultwarden-backup](https://github.com/ttionya/vaultwarden-backup).
 
