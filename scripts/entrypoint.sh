@@ -29,9 +29,10 @@ function switch_user() {
         exit 1
     fi
 
-    # only what isn't theirs yet, so a restart doesn't walk all of /config
+    # only what isn't theirs yet, so a restart doesn't walk all of /config;
+    # -h changes a symlink itself, never what it points to
     mkdir -p /config
-    if ! find /config \( ! -user "${RUN_UID}" -o ! -group "${RUN_GID}" \) -exec chown "${RUN_UID}:${RUN_GID}" {} +; then
+    if ! find /config \( ! -user "${RUN_UID}" -o ! -group "${RUN_GID}" \) -exec chown -h "${RUN_UID}:${RUN_GID}" {} +; then
         color yellow "could not give /config to ${RUN_UID}:${RUN_GID}, rclone may not be able to save its config"
     fi
 
@@ -42,10 +43,15 @@ function switch_user() {
 
 switch_user "$@"
 
-# rclone and shoutrrr commands
-if [[ "$1" == "rclone" || "$1" == "shoutrrr" ]]; then
-    exec "$@"
-fi
+case "${1:-}" in
+    "") ;;                           # the schedule
+    backup) ;;                       # one backup, below
+    rclone|shoutrrr) exec "$@" ;;
+    *)
+        color red "unknown command \"$1\": use backup, rclone or shoutrrr, or nothing to run the schedule"
+        exit 2
+        ;;
+esac
 
 function configure_timezone() {
     ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${LOCALTIME_FILE}"
@@ -56,13 +62,65 @@ function configure_cron() {
     echo "${CRON} bash /app/backup.sh" > "${CRON_CONFIG_FILE}"
 }
 
-function configure_healthcheck() {
-    printf 'start=%s\nmax_hours=%s\n' "$(date +%s)" "${HEALTHCHECK_MAX_HOURS}" > "${HEALTH_FILE}"
+########################################
+# Remove the work folders of backups that were killed before they could
+# clean up, as they can hold a decrypted budget. Nothing runs yet.
+########################################
+function clear_stale_work_dirs() {
+    find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -type d -name 'tmp.*' -user "$(id -u)" \
+        -exec rm -rf {} + 2> /dev/null
 }
 
+function configure_healthcheck() {
+    printf 'start=%s\nmax_hours=%s\nlast_backup_file=%s\n' \
+        "$(date +%s)" "${HEALTHCHECK_MAX_HOURS}" "${LAST_BACKUP_FILE}" > "${HEALTH_FILE}"
+}
+
+STARTUP_FAILURE_FILE="${HOME}/startup-failure"
+
+########################################
+# Report a failed start. With `restart: always` the container fails again on
+# every restart, so the same error is only sent again after a day. The file
+# that remembers it is in HOME, which a restart keeps and a new container
+# doesn't.
+########################################
+# shellcheck disable=SC2317,SC2329 # called by the trap below
+function on_startup_exit() {
+    local STATUS=$?
+    if [[ ${STATUS} -eq 0 ]]; then
+        return
+    fi
+
+    local MESSAGE
+    local KEY
+    local SENT_AT=0
+    local SENT_KEY=""
+    # without the color codes
+    # shellcheck disable=SC2001
+    MESSAGE="The backup container could not start: $(sed 's/\x1b\[[0-9;]*m//g' <<< "${LAST_ERROR:-exit status ${STATUS}}")"
+    KEY="$(printf '%s' "${MESSAGE}" | sha256sum | cut -c1-12)"
+    read -r SENT_AT SENT_KEY 2> /dev/null < "${STARTUP_FAILURE_FILE}"
+
+    if [[ "${SENT_KEY}" == "${KEY}" && $(( $(date +%s) - ${SENT_AT:-0} )) -lt 86400 ]]; then
+        color yellow "the failure notification for this error was sent less than a day ago"
+        return
+    fi
+    send_notification failure "${MESSAGE}"
+    printf '%s %s\n' "$(date +%s)" "${KEY}" 2> /dev/null > "${STARTUP_FAILURE_FILE}"
+}
+
+trap on_startup_exit EXIT
 init_env
 # a remote that is down now may be back by the backup, which reports it
 check_rclone_connection warn
+trap - EXIT
+rm -f "${STARTUP_FAILURE_FILE}"
+# notified once per container start, not on every one-off backup
+if [[ "$1" == "backup" ]]; then
+    warn_unencrypted_e2e_backups
+else
+    warn_unencrypted_e2e_backups notify
+fi
 configure_timezone
 configure_cron
 
@@ -90,6 +148,7 @@ if [[ "$1" == "backup" ]]; then
     # in its own process group, like a supercronic job
     setsid bash /app/backup.sh &
 else
+    clear_stale_work_dirs
     configure_healthcheck
 
     /usr/bin/supercronic -passthrough-logs -quiet "${CRON_CONFIG_FILE}" &

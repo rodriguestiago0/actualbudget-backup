@@ -9,5 +9,8 @@ Type=oneshot
 WorkingDirectory=/path/to/backup-actualbudget
 # This will spin up a temporary container, run the backup script once, and exit/remove itself
 ExecStart=/usr/bin/docker compose run --rm backup backup
+# stop a backup that hangs, so the next run isn't blocked; the stop is
+# reported as a failed backup
+TimeoutStartSec=2h
 
 # No [Install] section: the service is started by actualbudget-backup.timer

@@ -12,7 +12,7 @@ The first lines list the settings in use, with passwords hidden. Look for the fi
 
 ## Startup errors
 
-The container stops before any backup runs, and no notification is sent. Health check services see the missing [ping](ping-notifications.md).
+The container stops before any backup runs, and sends a failure [notification](notifications.md) and [ping](ping-notifications.md) with the error, once a day at most while it repeats.
 
 #### `ACTUAL_BUDGET_URL is not set` or `Invalid sync id`
 
@@ -25,6 +25,10 @@ There is no rclone remote with that name.
 - Run `rclone listremotes` (see [destination](configuration.md#destination)) and set `RCLONE_REMOTE_NAME` to one of the names, without the `:`.
 - Check that the container mounts the volume where you ran `rclone config`: `actualbudget-rclone-data` at `/config/`.
 - Remotes defined with environment variables are lowercased by rclone.
+
+#### `unknown command "..."`
+
+The container's command is not `backup`, `rclone` or `shoutrrr`. Leave it out to run the schedule.
 
 #### `illegal rclone global flags`
 
@@ -42,7 +46,7 @@ Docker Compose expects the volume to exist. It is created by the first `rclone c
 
 ## Backup errors
 
-The backup runs but fails. A [notification](notifications.md) is sent, and old backups are not deleted.
+The backup runs but fails. A [notification](notifications.md) is sent, and old backups are not deleted. A budget that fails to download is tried 3 times, 15 and 30 seconds apart, before it counts as failed.
 
 #### `Authentication failed: invalid-password`
 
@@ -72,6 +76,14 @@ The Actual server can't be reached, or its HTTPS certificate isn't trusted.
 
 The encryption password is missing or wrong. Each budget reads its own `ACTUAL_BUDGET_E2E_PASSWORD_N`, see [encrypted budgets](e2e-encrypted-backups.md).
 
+#### `the database check could not load better-sqlite3`
+
+The SQLite module that checks each download doesn't work in this image or install, so no budget can be checked and every backup fails. Your budgets are fine. [Open an issue](https://github.com/rodriguestiago0/actualbudget-backup/issues) with the log and your platform (`uname -m`); without Docker, run `npm ci --omit=dev` again in the install folder.
+
+#### `download failed` after 15 minutes
+
+Each call to the Actual server is stopped after 15 minutes, so a server that stops answering can't block the later backups. Check that the server is up and responds.
+
 #### `WARNING: your Actual server (...) is older than the Actual CLI`
 
 The backup works, but your server can't import it until you upgrade Actual. It is also sent as a [`warning` notification](notifications.md). A [fresh Actual](restore.md) can. See [Actual CLI version](configuration.md#actual-cli-version).
@@ -100,7 +112,7 @@ docker inspect --format '{{json .State.Health.Log}}' <container>
 
 #### `Permission denied` with `PUID`/`PGID` or `user:`
 
-The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. See [user](configuration.md#user).
+The backup runs as that user, so it must be able to read the mounted `.env` file and `_FILE` secrets, e.g. `chmod 644`. With `user:`, `/config` must also be writable by it; `PUID`/`PGID` take care of that. Otherwise the log says `could not write "/config/last-backup..." for the health check`, and the health check can't follow the backups. See [user](configuration.md#user).
 
 <br>
 

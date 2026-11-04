@@ -1,12 +1,13 @@
 # Configuration
 
-All settings are environment variables. Only the first three are required.
+All settings are environment variables. Only the first three are required, and the password can be replaced by a session token.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | [`ACTUAL_BUDGET_URL`](#actual-server) | | **Required.** Address of the Actual server |
-| [`ACTUAL_BUDGET_PASSWORD`](#actual-server) | | **Required.** Actual server password |
+| [`ACTUAL_BUDGET_PASSWORD`](#actual-server) | | **Required**, unless `ACTUAL_BUDGET_SESSION_TOKEN` is set. Actual server password |
 | [`ACTUAL_BUDGET_SYNC_ID`](#actual-server) | | **Required.** Sync ID of the budget |
+| [`ACTUAL_BUDGET_SESSION_TOKEN`](#actual-server) | | Session token instead of the password, for servers with OpenID login |
 | [`ACTUAL_BUDGET_E2E_PASSWORD`](#actual-server) | | Encryption password, for an end-to-end encrypted budget |
 | [`RCLONE_REMOTE_NAME`](#destination) | `ActualBudgetBackup` | rclone remote to upload to |
 | [`RCLONE_REMOTE_DIR`](#destination) | `/ActualBudgetBackup/` | Folder on the remote |
@@ -34,6 +35,8 @@ Several budgets and destinations use numbered variables, see [several budgets](m
 
 **`ACTUAL_BUDGET_PASSWORD`**: the password you log in to Actual with.
 
+**`ACTUAL_BUDGET_SESSION_TOKEN`**: for a server that uses OpenID login and has no password, a session token for the [Actual CLI](https://actualbudget.org/docs/api/cli/) instead. When both are set, the token is used. `ACTUAL_SESSION_TOKEN`, the CLI's own name, works too.
+
 **`ACTUAL_BUDGET_SYNC_ID`**: the budget to back up. In Actual, open **Settings**, click **Show advanced settings**, and copy the **Sync ID**.
 
 **`ACTUAL_BUDGET_E2E_PASSWORD`**: only for an [end-to-end encrypted](e2e-encrypted-backups.md) budget.
@@ -53,7 +56,7 @@ docker run --rm \
 
 **`RCLONE_REMOTE_DIR`**: the folder on the remote. It is created when missing.
 
-**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the cleanup reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`.
+**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the startup check reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`. Flags show up in `ps` on the host, so don't put secrets here: set them as rclone's own environment variables instead, e.g. `RCLONE_S3_SECRET_ACCESS_KEY`. The log hides the values of flags named like a key, secret, password or token.
 
 Remotes can also be defined with rclone's own environment variables instead of a config file, e.g. `RCLONE_CONFIG_MYS3_TYPE: 's3'`. rclone lowercases these names, so set `RCLONE_REMOTE_NAME: 'mys3'`.
 
@@ -63,9 +66,11 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`CRON`**: when the container starts a backup, as a [cron expression](https://crontab.guru/#0_0_*_*_*), run by [supercronic](https://github.com/aptible/supercronic). Not used when the backup is started [by systemd](systemd.md).
 
+In a timezone with daylight saving time, a `CRON` time inside the hour the clocks skip, e.g. `30 2 * * *` in Europe, may not run that day, and the container may then be `unhealthy` until the next backup. Pick a time outside 01:00 to 03:00.
+
 **`TIMEZONE`**: a [timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) such as `Europe/Lisbon`. It sets when `CRON` runs, the times in the log and notifications, and the date in file names. `TZ` works too; when both are set, `TIMEZONE` wins. An unknown name is logged and UTC is used.
 
-**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`), the default is `26`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup`, so it outlives the container.
+**`HEALTHCHECK_MAX_HOURS`**: the container turns `unhealthy` when no backup succeeded in this many hours, counted from the container start at the earliest, so a schedule that stopped running is noticed. When `CRON` runs every day (its day of month, month and day of week are `*`, or a range over all of them such as `SUN-SAT`), the default is `26`, and when it runs every hour (its hour is `*` too, or `@hourly`) it is `3`; for rarer schedules it is off unless set, e.g. `170` for a weekly one. `0` turns it off. The time of the last successful backup is kept in `/config/last-backup.<id>`, so it outlives the container. The `<id>` comes from `ACTUAL_BUDGET_URL` and the sync IDs, so containers that share the rclone volume, e.g. one per Actual server, each have their own.
 
 <br>
 
@@ -73,7 +78,7 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`BACKUP_KEEP_DAYS`**: after a successful backup, delete the backups older than this many days from every destination. `0`, the default, keeps everything.
 
-Only files whose name starts with `backup.` are deleted, never other files or folders. Nothing is deleted after a failed backup, so a run of failures never removes your last good backups.
+Only this tool's backups, files named `backup.<...>.zip`, `.7z` or `.tar` directly in the folder, are deleted, never other files or subfolders. Nothing is deleted after a failed backup, so a run of failures never removes your last good backups. When old backups can't be deleted, a [`warning` notification](notifications.md) is sent; the backup itself still counts as a success.
 
 <br>
 
@@ -128,7 +133,7 @@ services:
       - ./backup.env:/.env:ro
 ```
 
-Put one `NAME=value` per line. Values are read literally, nothing is expanded or run. Quote values with spaces or special characters, such as passwords, in single quotes: `ACTUAL_BUDGET_PASSWORD='pa$$ word'`. A value that contains a single quote can go in double quotes, where `\"` and `\\` are escapes. In an unquoted value, ` #` starts a comment.
+Put one `NAME=value` per line. Values are read literally, nothing is expanded or run. Quote values with spaces or special characters, such as passwords, in single quotes: `ACTUAL_BUDGET_PASSWORD='pa$$ word'`. A value that contains a single quote can go in double quotes, where `\"`, `\\`, `\$` and `` \` `` are escapes for `"`, `\`, `$` and `` ` ``. In an unquoted value, ` #` starts a comment.
 
 ### From files (Docker secrets)
 
@@ -167,6 +172,8 @@ docker run --rm --entrypoint actual rodriguestiago0/actualbudget-backup:latest -
 ```
 
 The CLI upgrades the budget to its own version while downloading it, so a backup opens in that version of Actual or newer. Each backup logs both versions, and warns when your server is older than the CLI. Your own server then can't import those backups until you upgrade it, while a [fresh Actual](restore.md) still can.
+
+A new minor or major CLI version always comes in a new minor image release (`v1.3.0`, not `v1.2.4`), so pinning `v1.2` keeps the CLI's minor version. To follow your server's version instead, use the `actual-<version>` tags, e.g. `rodriguestiago0/actualbudget-backup:actual-26.11` for the newest release with CLI 26.11.x. Each release note also names its CLI version.
 
 <br>
 

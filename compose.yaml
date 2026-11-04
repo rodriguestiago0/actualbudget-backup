@@ -9,6 +9,7 @@ services:
       ACTUAL_BUDGET_URL: 'https://actual.example.com'
       ACTUAL_BUDGET_PASSWORD: ''
       ACTUAL_BUDGET_SYNC_ID: ''
+    # ACTUAL_BUDGET_SESSION_TOKEN: ''   # instead of the password, for OpenID login
     # ACTUAL_BUDGET_E2E_PASSWORD: ''
 
       # Where to upload the backups (rclone remote)

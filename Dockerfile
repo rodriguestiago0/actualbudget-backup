@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.27.1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 
 FROM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS base
 
@@ -37,29 +37,40 @@ RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+# then drops what the Node API never loads: the browser-only SQLite
+# packages, better-sqlite3's sources and its prebuilds for other platforms
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
-  && npm cache clean --force
+  && npm cache clean --force \
+  && rm -rf node_modules/absurd-sql node_modules/@jlongster/sql.js \
+    node_modules/better-sqlite3/deps node_modules/better-sqlite3/src \
+  && find node_modules/better-sqlite3/prebuilds -name '*.node' \
+    ! -name "linuxmusl-$(node -p process.arch).node" -delete
 # better-sqlite3 falls back to build/Release/ when it has no prebuild
 COPY --from=sqlite /out/ /app/node_modules/better-sqlite3/build/Release/
 
 # Shoutrrr CLI for notifications (https://github.com/nicholas-fedor/shoutrrr).
 # Runs on the build platform; it only downloads and verifies the binary.
+# The checksums are pinned here rather than read from the release, so a
+# replaced release asset fails the build. update-shoutrrr.yml updates them.
 FROM --platform=$BUILDPLATFORM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS shoutrrr
 
 ARG SHOUTRRR_VERSION="0.22.1"
+ARG SHOUTRRR_SHA256_AMD64="c6621f7a34b631705e5e94d33056d6368901495835ad07166034b644a1d46d86"
+ARG SHOUTRRR_SHA256_ARM64V8="f5198eacbc481552e169bb5d67cc9652d19c5494f06720832b0d85fc5eb368b4"
+ARG SHOUTRRR_SHA256_ARMHF="1e99f7bcd8b60e3bc952381875f8766cba9ac8013144005ebe503587018954ee"
 ARG TARGETARCH
 
 RUN case "${TARGETARCH}" in \
-      amd64) ARCH="amd64" ;; \
-      arm64) ARCH="arm64v8" ;; \
-      arm)   ARCH="armhf" ;; \
+      amd64) ARCH="amd64";   SUM="${SHOUTRRR_SHA256_AMD64}" ;; \
+      arm64) ARCH="arm64v8"; SUM="${SHOUTRRR_SHA256_ARM64V8}" ;; \
+      arm)   ARCH="armhf";   SUM="${SHOUTRRR_SHA256_ARMHF}" ;; \
       *)     echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
   && FILE="shoutrrr_linux_${ARCH}_${SHOUTRRR_VERSION}.tar.gz" \
   && URL="https://github.com/nicholas-fedor/shoutrrr/releases/download/v${SHOUTRRR_VERSION}" \
   && cd /tmp \
-  && wget -q "${URL}/${FILE}" "${URL}/checksums.txt" \
-  && grep " ${FILE}\$" checksums.txt | sha256sum -c - \
+  && wget -q "${URL}/${FILE}" \
+  && echo "${SUM}  ${FILE}" | sha256sum -c - \
   && tar xzf "${FILE}" shoutrrr \
   && mv shoutrrr /usr/local/bin/shoutrrr
 

@@ -13,6 +13,9 @@ MAX_HOURS=0
 if [[ -f "${HEALTH_FILE}" ]]; then
     START="$(sed -n 's/^start=//p' "${HEALTH_FILE}")"
     MAX_HOURS="$(sed -n 's/^max_hours=//p' "${HEALTH_FILE}")"
+    # named after the configuration, see init_last_backup_file
+    FILE="$(sed -n 's/^last_backup_file=//p' "${HEALTH_FILE}")"
+    LAST_BACKUP_FILE="${FILE:-${LAST_BACKUP_FILE}}"
 fi
 
 if [[ -f "${LAST_BACKUP_FILE}" ]]; then

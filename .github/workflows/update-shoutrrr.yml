@@ -53,18 +53,32 @@ jobs:
             echo "branch=$BRANCH"
           } >> "$GITHUB_OUTPUT"
 
+      # The new checksums go into the Dockerfile, so the pull request shows
+      # them for review instead of the build trusting the release's file
       - name: Update the Dockerfile
         if: steps.check.outputs.version != ''
         env:
           VERSION: ${{ steps.check.outputs.version }}
-        run: sed -i "s/^ARG SHOUTRRR_VERSION=\".*\"$/ARG SHOUTRRR_VERSION=\"${VERSION}\"/" Dockerfile
+        run: |
+          sed -i "s/^ARG SHOUTRRR_VERSION=\".*\"$/ARG SHOUTRRR_VERSION=\"${VERSION}\"/" Dockerfile
+          curl -fsSL -o "$RUNNER_TEMP/checksums.txt" \
+            "https://github.com/nicholas-fedor/shoutrrr/releases/download/v${VERSION}/checksums.txt"
+          for ARCH in amd64 arm64v8 armhf; do
+            SUM=$(awk -v f="shoutrrr_linux_${ARCH}_${VERSION}.tar.gz" '$2 == f { print $1 }' "$RUNNER_TEMP/checksums.txt")
+            if ! [[ "$SUM" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::No checksum for $ARCH in the v${VERSION} release"
+              exit 1
+            fi
+            sed -i "s/^ARG SHOUTRRR_SHA256_${ARCH^^}=\".*\"$/ARG SHOUTRRR_SHA256_${ARCH^^}=\"${SUM}\"/" Dockerfile
+          done
+          git diff Dockerfile
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.version != ''
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Downloads the binary for every published platform and checks it
-      # against the release checksums.
+      # against the checksums written above.
       - name: Verify the release binaries
         if: steps.check.outputs.version != ''
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -93,7 +107,7 @@ jobs:
           TITLE="Update Shoutrrr to v${VERSION}"
           BODY="Shoutrrr [v${VERSION}](https://github.com/nicholas-fedor/shoutrrr/releases/tag/v${VERSION}) is out (currently v${CURRENT}).
 
-          This bumps \`SHOUTRRR_VERSION\` in the Dockerfile. Its binaries for all published platforms were downloaded and match the release checksums."
+          This bumps \`SHOUTRRR_VERSION\` and the pinned SHA-256 checksums in the Dockerfile, taken from the release's checksums.txt. Its binaries for all published platforms were downloaded and match them."
 
           if [ "$HAS_RELEASE_TOKEN" = true ]; then
             gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"

@@ -19,13 +19,13 @@ For health check services such as healthchecks.io, use [ping notifications](ping
 
 Each message has a title, such as `✅ Actual Budget Backup Success`, and a text, such as `Backup finished at 2026-10-21 16:30:32 UTC. 1 budget(s) uploaded to 1 remote(s).`
 
-A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails.
+A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails. Old backups that can't be deleted don't make it fail; they send a `warning` instead.
 
-A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
+A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it, or [old backups](configuration.md#retention) could not be deleted. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
 
-URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens.
+URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens. The `shoutrrr` command can only take the URL as an argument, so it does show up in `ps` on the host while a notification is sent.
 
-> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs, so no notification is sent.
+> **Note:** If the configuration is invalid (for example no `ACTUAL_BUDGET_SYNC_ID` or no rclone remote), the container stops at startup before any backup runs. It then sends a failure notification with the error, once a day at most while the same error repeats, since `restart: always` restarts it in a loop. Settings needed to send it, such as a missing `_FILE` secret of `NOTIFICATION_URLS`, can't be reported.
 
 <br>
 

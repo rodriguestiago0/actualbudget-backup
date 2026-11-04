@@ -105,7 +105,7 @@ systemctl status actualbudget-backup.service
 systemctl list-timers actualbudget-backup.timer
 ```
 
-A failed backup marks the service as failed. The service is sandboxed: it can only write to `/var/lib/actualbudget-backup` and a private `/tmp`.
+A failed backup marks the service as failed, and so does one that runs longer than 2 hours (`TimeoutStartSec`), which is stopped. The service is sandboxed: it can only write to `/var/lib/actualbudget-backup` and a private `/tmp`.
 
 <br>
 

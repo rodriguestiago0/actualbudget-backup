@@ -4,6 +4,11 @@
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/includes.sh"
 
 BACKUP_DIR="backup"
+# limit for each Actual CLI call, so a hung server can't block later runs
+ACTUAL_TIMEOUT_SECONDS=900
+# tries per budget download, waiting 15s, then 30s, between them
+DOWNLOAD_ATTEMPTS=3
+DOWNLOAD_RETRY_SECONDS=15
 FAILED_COUNT=0
 UPLOADED_COUNT=0
 
@@ -59,7 +64,9 @@ function archive_budget() {
 # Arguments:
 #     db.sqlite path
 # Returns:
-#     0 if it is fine or the check cannot run, 1 if it is corrupt
+#     0 if it is fine or better-sqlite3 is not installed, 1 if it is
+#     corrupt, 4 if better-sqlite3 cannot load (a problem of the install or
+#     image, not of the budget)
 ########################################
 function check_database() {
     local STATUS=0
@@ -71,6 +78,13 @@ function check_database() {
             Database = require("module").createRequire(process.env.NODE_MODULES + "/")("better-sqlite3");
         } catch {
             process.exit(3);
+        }
+        // the native binding only loads when a database is opened
+        try {
+            new Database(":memory:").close();
+        } catch (error) {
+            console.error(error.message);
+            process.exit(4);
         }
         let result;
         try {
@@ -118,20 +132,34 @@ function download_budget() {
     local SYNC_ID="$1"
     local DATA_DIR
     local BUDGET_DIR
+    local ATTEMPT
 
-    DATA_DIR="$(mktemp -d)"
     backup_file_name "${SYNC_ID}"
     color blue "downloading budget $(color yellow "[${SYNC_ID} -> ${BACKUP_FILE_ZIP}]")"
 
-    # pass secrets through the environment so they don't show up in `ps`
-    if ! ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
-        ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
-        ACTUAL_ENCRYPTION_PASSWORD="$2" \
-        actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
-        color red "download failed \"${SYNC_ID}\""
+    # a few tries, each in an empty data dir, so a server restart or a proxy
+    # error at backup time doesn't lose the backup
+    for ATTEMPT in $(seq "${DOWNLOAD_ATTEMPTS}"); do
+        # in WORK_DIR, which on_exit removes, so the decrypted budget never
+        # outlives the backup
+        DATA_DIR="$(mktemp -d -p "${WORK_DIR}")"
+        # pass secrets through the environment so they don't show up in `ps`
+        if ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
+            ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
+            ACTUAL_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN}" \
+            ACTUAL_ENCRYPTION_PASSWORD="$2" \
+            timeout "${ACTUAL_TIMEOUT_SECONDS}" actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
+            break
+        fi
         rm -rf "${DATA_DIR}"
-        return 1
-    fi
+
+        if [[ ${ATTEMPT} -eq ${DOWNLOAD_ATTEMPTS} ]]; then
+            color red "download failed \"${SYNC_ID}\""
+            return 1
+        fi
+        color yellow "download failed \"${SYNC_ID}\", trying again in $((ATTEMPT * DOWNLOAD_RETRY_SECONDS))s"
+        sleep $((ATTEMPT * DOWNLOAD_RETRY_SECONDS))
+    done
 
     BUDGET_DIR="$(dirname "$(find "${DATA_DIR}" -mindepth 2 -maxdepth 2 -name db.sqlite | head -n 1)")"
     if [[ ! -f "${BUDGET_DIR}/db.sqlite" ]]; then
@@ -140,14 +168,20 @@ function download_budget() {
         return 1
     fi
 
-    if ! check_database "${BUDGET_DIR}/db.sqlite"; then
+    local STATUS=0
+    check_database "${BUDGET_DIR}/db.sqlite" || STATUS=$?
+    if [[ ${STATUS} -eq 4 ]]; then
+        color red "the database check could not load better-sqlite3, so \"${SYNC_ID}\" could not be checked. This is a problem of the image or install, not of your budget: please report it"
+        rm -rf "${DATA_DIR}"
+        return 1
+    elif [[ ${STATUS} -ne 0 ]]; then
         color red "the downloaded budget is corrupt \"${SYNC_ID}\""
         rm -rf "${DATA_DIR}"
         return 1
     fi
 
     archive_budget "${BUDGET_DIR}" "${BACKUP_FILE_ZIP}"
-    local STATUS=$?
+    STATUS=$?
     rm -rf "${DATA_DIR}"
 
     if [[ ${STATUS} -ne 0 || ! -s "${BACKUP_FILE_ZIP}" ]]; then
@@ -175,7 +209,8 @@ function check_server_version() {
     CLI_VERSION="$(actual --version 2> /dev/null)"
     SERVER_VERSION="$(ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
         ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
-        actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+        ACTUAL_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN}" \
+        timeout "${ACTUAL_TIMEOUT_SECONDS}" actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
 
     if [[ -z "${SERVER_VERSION}" ]]; then
         color yellow "could not determine the Actual server version (Actual CLI ${CLI_VERSION})"
@@ -236,26 +271,29 @@ function clear_history() {
         return
     fi
 
-    if [[ "${BACKUP_KEEP_DAYS}" -gt 0 ]]; then
-        for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
-        do
-            color blue "delete ${BACKUP_KEEP_DAYS} days ago backup files $(color yellow "[${RCLONE_REMOTE_X}]")"
+    if [[ "${BACKUP_KEEP_DAYS}" -eq 0 ]]; then
+        return
+    fi
 
-            # only this tool's backup files, so other files and folders in
-            # the remote folder are never deleted
-            # shellcheck disable=SC2086
-            mapfile -t RCLONE_DELETE_LIST < <(rclone ${RCLONE_GLOBAL_FLAG} lsf "${RCLONE_REMOTE_X}" --files-only --include "backup.*" --min-age "${BACKUP_KEEP_DAYS}d")
+    local RETENTION_ERRORS=()
+    for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
+    do
+        color blue "delete backup files older than ${BACKUP_KEEP_DAYS} days $(color yellow "[${RCLONE_REMOTE_X}]")"
 
-            for RCLONE_DELETE_FILE in "${RCLONE_DELETE_LIST[@]}"
-            do
-                color yellow "deleting \"${RCLONE_DELETE_FILE}\""
+        # one call that lists and deletes in the same folder, and only this
+        # tool's backup files, so other files and subfolders are never
+        # deleted; -v logs each deleted file
+        # shellcheck disable=SC2086
+        if ! rclone ${RCLONE_GLOBAL_FLAG} delete "${RCLONE_REMOTE_X}" --max-depth 1 \
+            --include 'backup.*.{zip,7z,tar}' --min-age "${BACKUP_KEEP_DAYS}d" -v; then
+            color red "deleting old backup files failed $(color yellow "[${RCLONE_REMOTE_X}]")"
+            RETENTION_ERRORS+=("${RCLONE_REMOTE_X}")
+        fi
+    done
 
-                # shellcheck disable=SC2086
-                if ! rclone ${RCLONE_GLOBAL_FLAG} delete "${RCLONE_REMOTE_X}/${RCLONE_DELETE_FILE}"; then
-                    color red "delete \"${RCLONE_DELETE_FILE}\" failed"
-                fi
-            done
-        done
+    # the backups themselves worked, so this is only a warning
+    if [[ ${#RETENTION_ERRORS[@]} -gt 0 ]]; then
+        send_notification warning "Old backups could not be deleted from: ${RETENTION_ERRORS[*]}. Check the logs."
     fi
 }
 
@@ -265,6 +303,12 @@ function clear_history() {
 function on_exit() {
     local STATUS=$?
     local NOW_TEXT
+
+    # another backup is running and reports for itself
+    if [[ "${LOCKED_OUT:-}" == "TRUE" ]]; then
+        return
+    fi
+
     NOW_TEXT="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 
     if [[ -n "${WORK_DIR:-}" ]]; then
@@ -284,8 +328,10 @@ function on_exit() {
     else
         LAST_SUCCESS="$(date +%s)"
     fi
-    { printf '%s\n' "${RESULT}" ${LAST_SUCCESS:+"last_success=${LAST_SUCCESS}"} > "${LAST_BACKUP_FILE}" &&
-        chmod a+rw "${LAST_BACKUP_FILE}"; } 2> /dev/null
+    if ! { printf '%s\n' "${RESULT}" ${LAST_SUCCESS:+"last_success=${LAST_SUCCESS}"} > "${LAST_BACKUP_FILE}"; } 2> /dev/null; then
+        color yellow "could not write \"${LAST_BACKUP_FILE}\" for the health check, check that user $(id -u):$(id -g) can write to its folder"
+    fi
+    chmod a+rw "${LAST_BACKUP_FILE}" 2> /dev/null
 
     if [[ ${STATUS} -eq 0 ]]; then
         send_notification success "Backup finished at ${NOW_TEXT}. ${UPLOADED_COUNT} budget(s) uploaded to ${#RCLONE_REMOTE_LIST[@]} remote(s)."
@@ -307,6 +353,30 @@ trap 'exit 129' HUP
 
 init_env
 unexport_secrets
+
+########################################
+# Run one backup at a time per configuration, e.g. when a manual backup
+# overlaps the schedule. The lock is next to the status file, so it works
+# without /config too.
+########################################
+function lock_backup() {
+    local LOCK_FILE="${LAST_BACKUP_FILE}.lock"
+
+    if ! command -v flock > /dev/null || ! { exec 9>> "${LOCK_FILE}"; } 2> /dev/null; then
+        color yellow "could not lock \"${LOCK_FILE}\", backing up without checking for another running backup"
+        return
+    fi
+    # like the status file, so a backup run by root doesn't lock out the PUID user
+    chmod a+rw "${LOCK_FILE}" 2> /dev/null
+
+    if ! flock -n 9; then
+        color yellow "another backup with this configuration is running, skipping this one"
+        LOCKED_OUT="TRUE"
+        exit 0
+    fi
+}
+
+lock_backup
 
 # after init_env, so the time is in the configured TIMEZONE
 color blue "running the backup program at $(date +"%Y-%m-%d %H:%M:%S %Z")"

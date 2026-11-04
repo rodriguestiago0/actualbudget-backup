@@ -6,7 +6,8 @@
 ENV_FILE="${ENV_FILE:-"/.env"}"
 CRON_CONFIG_FILE="${HOME}/crontabs"
 # result of the last backup, for the Docker health check. In /config when it
-# is mounted, so it outlives the container
+# is mounted, so it outlives the container; init_env names it after the
+# configuration there, see init_last_backup_file
 if [[ -d /config ]]; then
     LAST_BACKUP_FILE="/config/last-backup"
 else
@@ -30,10 +31,13 @@ fi
 #     message
 # Outputs:
 #     colorful message
+# Globals:
+#     LAST_ERROR   the last red message
 ########################################
 function color() {
     case $1 in
-        red)     echo -e "\033[31m$2\033[0m" ;;
+        # the last error, for the startup failure notification
+        red)     LAST_ERROR="$2"; echo -e "\033[31m$2\033[0m" ;;
         green)   echo -e "\033[32m$2\033[0m" ;;
         yellow)  echo -e "\033[33m$2\033[0m" ;;
         blue)    echo -e "\033[34m$2\033[0m" ;;
@@ -104,37 +108,92 @@ function check_rclone_connection() {
 }
 
 ########################################
+# Warn when end-to-end encrypted budgets would be uploaded decrypted: no
+# ZIP_PASSWORD, and a destination that is not an rclone crypt remote.
+# Arguments:
+#     "notify" to also send a warning notification
+########################################
+function warn_unencrypted_e2e_backups() {
+    local PASSWORD
+    local ENCRYPTED=FALSE
+    for PASSWORD in "${ACTUAL_BUDGET_E2E_PASSWORD_LIST[@]}"
+    do
+        if [[ -n "${PASSWORD}" ]]; then
+            ENCRYPTED=TRUE
+        fi
+    done
+    if [[ "${ENCRYPTED}" != "TRUE" || ( "${ZIP_ENABLE}" == "TRUE" && -n "${ZIP_PASSWORD}" ) ]]; then
+        return
+    fi
+
+    local REMOTES
+    local PLAIN=()
+    REMOTES="$(rclone ${RCLONE_GLOBAL_FLAG} listremotes --long 2> /dev/null)"
+    for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
+    do
+        if [[ "$(awk -v NAME="${RCLONE_REMOTE_X%%:*}:" '$1 == NAME { print $2 }' <<< "${REMOTES}")" != "crypt" ]]; then
+            PLAIN+=("${RCLONE_REMOTE_X}")
+        fi
+    done
+    if [[ ${#PLAIN[@]} -eq 0 ]]; then
+        return
+    fi
+
+    color yellow "WARNING: the end-to-end encrypted budgets are backed up decrypted, like Actual's own export, and uploaded without encryption to: ${PLAIN[*]}"
+    color yellow "WARNING: set ZIP_PASSWORD, or use an rclone crypt remote, to keep them encrypted"
+    if [[ "$1" == "notify" ]]; then
+        send_notification warning "End-to-end encrypted budgets are uploaded decrypted to ${PLAIN[*]}. Set ZIP_PASSWORD or use an rclone crypt remote to keep them encrypted."
+    fi
+}
+
+########################################
 # Check whether a cron expression runs at least once a day: its day of
-# month, month and day of week fields, and year if any, are all "*".
+# month, month and day of week fields, and year if any, are all "*", or a
+# range over all values such as 1-31, JAN-DEC or SUN-SAT.
 # Arguments:
 #     cron expression
+#     "hourly" to check that it runs every hour instead: the hour field is
+#     "*" or 0-23 too
 # Returns:
-#     0 if it runs every day, 1 otherwise or if unsure
+#     0 if it runs every day (or hour), 1 otherwise or if unsure
 ########################################
 function cron_runs_daily() {
     local FIELDS
-    local FIELD
     local START=2
-    local COUNT=3
-    read -ra FIELDS <<< "$1"
+    local YEAR=FALSE
+    read -ra FIELDS <<< "${1^^}"
 
     case "${#FIELDS[@]}" in
-        1) [[ "${FIELDS[0]}" =~ ^@(hourly|daily|midnight)$ ]]; return ;;
+        1)
+            if [[ "$2" == "hourly" ]]; then
+                [[ "${FIELDS[0]}" == "@HOURLY" ]]
+            else
+                [[ "${FIELDS[0]}" =~ ^@(HOURLY|DAILY|MIDNIGHT)$ ]]
+            fi
+            return
+            ;;
         5) ;;
-        6) COUNT=4 ;;                # with a year
-        7) START=3; COUNT=4 ;;       # with seconds and a year
+        6) YEAR=TRUE ;;              # with a year
+        7) START=3; YEAR=TRUE ;;     # with seconds and a year
         *) return 1 ;;
     esac
 
-    for FIELD in "${FIELDS[@]:START:COUNT}"
-    do
-        [[ "${FIELD}" == "*" || "${FIELD}" == "?" ]] || return 1
-    done
+    local ANY='^(\*|\?|\*/1)$'
+    [[ "${FIELDS[START]}" =~ ${ANY} || "${FIELDS[START]}" == "1-31" ]] || return 1
+    [[ "${FIELDS[START + 1]}" =~ ${ANY} || "${FIELDS[START + 1]}" =~ ^(1-12|JAN-DEC)$ ]] || return 1
+    [[ "${FIELDS[START + 2]}" =~ ${ANY} || "${FIELDS[START + 2]}" =~ ^(0-6|0-7|SUN-SAT)$ ]] || return 1
+    if [[ "${YEAR}" == "TRUE" ]]; then
+        [[ "${FIELDS[START + 3]}" =~ ${ANY} ]] || return 1
+    fi
+    if [[ "$2" == "hourly" ]]; then
+        [[ "${FIELDS[START - 1]}" =~ ${ANY} || "${FIELDS[START - 1]}" == "0-23" ]] || return 1
+    fi
 }
 
 ########################################
 # Check whether a version is lower than another (e.g. 26.3.0 < 26.10.0).
-# Pre-release suffixes such as "-nightly.20261021" are ignored.
+# A leading "v" and pre-release suffixes such as "-nightly.20261021" are
+# ignored.
 # Arguments:
 #     version
 #     other version
@@ -143,8 +202,9 @@ function cron_runs_daily() {
 ########################################
 function version_lt() {
     local A B i
-    IFS=. read -ra A <<< "${1%%-*}"
-    IFS=. read -ra B <<< "${2%%-*}"
+    local V1="${1#v}" V2="${2#v}"
+    IFS=. read -ra A <<< "${V1%%-*}"
+    IFS=. read -ra B <<< "${V2%%-*}"
 
     for i in 0 1 2; do
         [[ "${A[i]:-0}" =~ ^[0-9]+$ && "${B[i]:-0}" =~ ^[0-9]+$ ]] || return 1
@@ -200,32 +260,75 @@ function send_ping() {
 
     local OPTIONS_VAR="${URL_VAR}_CURL_OPTIONS"
     local CURL_URL="${!URL_VAR}"
-    local CURL_OPTIONS="${!OPTIONS_VAR}"
     local SUBJECT_PLACEHOLDER='%{subject}'
     local CONTENT_PLACEHOLDER='%{content}'
+    local CURL_ARGS=()
+    local i
 
     if [[ -z "${CURL_URL}" ]]; then
         return
     fi
 
-    # spaces become '+' in the URL; options get the text as is
-    CURL_URL="${CURL_URL//"${SUBJECT_PLACEHOLDER}"/"${2// /+}"}"
-    CURL_URL="${CURL_URL//"${CONTENT_PLACEHOLDER}"/"${3// /+}"}"
-    CURL_OPTIONS="${CURL_OPTIONS//"${SUBJECT_PLACEHOLDER}"/"$2"}"
-    CURL_OPTIONS="${CURL_OPTIONS//"${CONTENT_PLACEHOLDER}"/"$3"}"
-
-    # eval so quoted options such as -H "Title: x" are passed as one argument
-    local CURL_COMMAND="curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"\${CURL_URL}\""
+    # Split the options from the user's own settings into words first, so
+    # quoted options such as -H "Title: x" stay one argument, and only then
+    # put the text in, so the text is never read by the shell
+    eval "CURL_ARGS=(${!OPTIONS_VAR})"
+    for i in "${!CURL_ARGS[@]}"
+    do
+        CURL_ARGS[i]="${CURL_ARGS[i]//"${SUBJECT_PLACEHOLDER}"/"$2"}"
+        CURL_ARGS[i]="${CURL_ARGS[i]//"${CONTENT_PLACEHOLDER}"/"$3"}"
+    done
+    CURL_URL="${CURL_URL//"${SUBJECT_PLACEHOLDER}"/"$(urlencode "$2")"}"
+    CURL_URL="${CURL_URL//"${CONTENT_PLACEHOLDER}"/"$(urlencode "$3")"}"
 
     if [[ "${PING_DEBUG}" == "TRUE" ]]; then
-        color yellow "curl command: curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${CURL_OPTIONS:+" ${CURL_OPTIONS}"} \"${CURL_URL}\""
+        local SHOWN=""
+        if [[ ${#CURL_ARGS[@]} -gt 0 ]]; then
+            SHOWN="$(printf ' %q' "${CURL_ARGS[@]}")"
+        fi
+        color yellow "curl command: curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null${SHOWN} $(printf '%q' "${CURL_URL}")"
     fi
 
-    if eval "${CURL_COMMAND}"; then
+    # the URL often holds a token, so it goes to curl on stdin, as a config
+    # file, rather than on the command line, which `ps` shows
+    CURL_URL="${CURL_URL//\\/\\\\}"
+    CURL_URL="${CURL_URL//\"/\\\"}"
+    if printf 'url = "%s"\n' "${CURL_URL}" |
+        curl -m 15 --retry 10 --retry-delay 1 -fsS -o /dev/null "${CURL_ARGS[@]}" -K -; then
         color blue "$1 ping has been sent successfully"
     else
         color red "$1 ping sending has failed"
     fi
+}
+
+########################################
+# Percent-encode text for a URL.
+# Arguments:
+#     text
+# Outputs:
+#     encoded text
+########################################
+function urlencode() {
+    local LC_ALL=C
+    local TEXT="$1"
+    local OUT=""
+    local CHAR
+    local CODE
+    local i
+
+    for (( i = 0; i < ${#TEXT}; i++ ))
+    do
+        CHAR="${TEXT:i:1}"
+        if [[ "${CHAR}" =~ [A-Za-z0-9._~-] ]]; then
+            OUT+="${CHAR}"
+        else
+            # one byte at a time; musl's C locale maps bytes above 0x7F to
+            # 0xDF80 and up, so keep only the byte
+            printf -v CODE '%d' "'${CHAR}"
+            printf -v OUT '%s%%%02X' "${OUT}" $(( CODE & 0xFF ))
+        fi
+    done
+    printf '%s' "${OUT}"
 }
 
 ########################################
@@ -370,7 +473,8 @@ function export_env_file() {
     local VALUE
     local LINE_REGEX='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$'
     local SINGLE_QUOTED_REGEX="^'(.*)'[[:space:]]*(#.*)?$"
-    local DOUBLE_QUOTED_REGEX='^"(.*)"[[:space:]]*(#.*)?$'
+    # up to the first unescaped quote, so a comment may contain quotes too
+    local DOUBLE_QUOTED_REGEX='^"(([^"\\]|\\.)*)"[[:space:]]*(#.*)?$'
 
     while IFS= read -r LINE || [[ -n "${LINE}" ]]; do
         LINE="${LINE%$'\r'}"
@@ -450,7 +554,7 @@ function unexport_secrets() {
 
     for VAR in $(compgen -e)
     do
-        if [[ "${VAR}" =~ ^(DOTENV_.*|ACTUAL_BUDGET_PASSWORD|ACTUAL_BUDGET_E2E_PASSWORD.*|ZIP_PASSWORD|NOTIFICATION_URLS|PING_URL.*)$ ]]; then
+        if [[ "${VAR}" =~ ^(DOTENV_.*|ACTUAL_BUDGET_PASSWORD|ACTUAL_BUDGET_SESSION_TOKEN|ACTUAL_SESSION_TOKEN|ACTUAL_BUDGET_E2E_PASSWORD.*|ZIP_PASSWORD|NOTIFICATION_URLS|PING_URL.*)$ ]]; then
             # shellcheck disable=SC2163 # un-exports the variable named in VAR
             export -n "${VAR}"
         fi
@@ -558,6 +662,14 @@ function init_actual_env(){
     ACTUAL_BUDGET_PASSWORD="${ACTUAL_BUDGET_PASSWORD:-""}"
     color yellow "ACTUAL_BUDGET_PASSWORD: *****"
 
+    # instead of the password, for servers with OpenID login; falls back to
+    # the Actual CLI's own variable, which older releases passed on as is
+    get_env ACTUAL_BUDGET_SESSION_TOKEN
+    ACTUAL_BUDGET_SESSION_TOKEN="${ACTUAL_BUDGET_SESSION_TOKEN:-"${ACTUAL_SESSION_TOKEN:-}"}"
+    if [[ -n "${ACTUAL_BUDGET_SESSION_TOKEN}" ]]; then
+        color yellow "ACTUAL_BUDGET_SESSION_TOKEN: *****"
+    fi
+
     get_env ACTUAL_BUDGET_SYNC_ID
 
     if [[ -z "${ACTUAL_BUDGET_SYNC_ID}" ]]; then
@@ -581,6 +693,24 @@ function init_actual_env(){
 }
 
 ########################################
+# Name the status file in /config after the Actual server and budgets, so
+# containers that share the rclone volume, e.g. one per server, don't
+# overwrite each other's health state. The entrypoint passes the name on to
+# the health check.
+# Arguments:
+#     None
+########################################
+function init_last_backup_file() {
+    if [[ "${LAST_BACKUP_FILE}" != "/config/last-backup" ]]; then
+        return
+    fi
+
+    local KEY
+    KEY="$(printf '%s ' "${ACTUAL_BUDGET_URL}" "${ACTUAL_BUDGET_SYNC_ID_LIST[@]}" | sha256sum | cut -c1-12)"
+    LAST_BACKUP_FILE="/config/last-backup.${KEY}"
+}
+
+########################################
 # Initialization environment variables.
 # Arguments:
 #     None
@@ -598,12 +728,14 @@ function init_env() {
     get_env CRON
     CRON="${CRON:-"0 0 * * *"}"
 
-    # HEALTHCHECK_MAX_HOURS, by default a day plus some slack when CRON runs
-    # every day, and off otherwise
+    # HEALTHCHECK_MAX_HOURS, by default an hour or a day plus some slack when
+    # CRON runs every hour or day, and off otherwise
     get_env HEALTHCHECK_MAX_HOURS
     if [[ -z "${HEALTHCHECK_MAX_HOURS}" ]]; then
         HEALTHCHECK_MAX_HOURS=0
-        if cron_runs_daily "${CRON}"; then
+        if cron_runs_daily "${CRON}" hourly; then
+            HEALTHCHECK_MAX_HOURS=3
+        elif cron_runs_daily "${CRON}"; then
             HEALTHCHECK_MAX_HOURS=26
         fi
     elif [[ ! "${HEALTHCHECK_MAX_HOURS}" =~ ^[0-9]+$ ]]; then
@@ -680,6 +812,7 @@ function init_env() {
     export TZ="${TIMEZONE}"
 
     init_actual_env
+    init_last_backup_file
 
     color yellow "========================================"
     color yellow "CRON: ${CRON}"
@@ -690,7 +823,8 @@ function init_env() {
         color yellow "RCLONE_REMOTE: ${RCLONE_REMOTE_X}"
     done
 
-    color yellow "RCLONE_GLOBAL_FLAG: ${RCLONE_GLOBAL_FLAG}"
+    # hide the values of flags such as --s3-secret-access-key
+    color yellow "RCLONE_GLOBAL_FLAG: $(sed -E 's/(--[a-z0-9-]*(key|secret|pass|token)[a-z0-9-]*)(=|[[:space:]]+)[^[:space:]-][^[:space:]]*/\1\3***/g' <<< "${RCLONE_GLOBAL_FLAG}")"
     color yellow "ZIP_ENABLE: ${ZIP_ENABLE}"
     color yellow "ZIP_PASSWORD: ${#ZIP_PASSWORD} Chars"
     color yellow "ZIP_TYPE: ${ZIP_TYPE}"

@@ -40,13 +40,35 @@ jobs:
         run: bats test/*.bats
 
       - name: Shellcheck
-        run: shellcheck scripts/*.sh test/e2e/run.sh
+        run: shellcheck scripts/*.sh test/e2e/run.sh .github/scripts/*.sh
 
       # also shellchecks the run: blocks of the workflows
       - name: Actionlint
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
 
+  # Whether anything since the last tag changes the image, the same check the
+  # release uses. When nothing does, main builds amd64 only and leaves the
+  # build cache alone, since an amd64-only cache would drop the ARM layers.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.plan.outputs.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check what changed since the last release
+        id: plan
+        run: .github/scripts/release-plan.sh >> "$GITHUB_OUTPUT"
+
   build:
+    needs: changes
     runs-on: ubuntu-latest
     concurrency:
       group: build-${{ github.ref }}
@@ -57,10 +79,11 @@ jobs:
       # read-only, so they can only read it
       packages: write
     # PRs only build amd64 to stay fast; main builds every published
-    # platform so a broken arch blocks the release. Dependabot PRs build
-    # them all too, since they can merge on their own.
+    # platform so a broken arch blocks the release, unless the image can't
+    # have changed. Dependabot PRs build them all too, since they can merge
+    # on their own.
     env:
-      ALL_PLATFORMS: ${{ github.event_name == 'push' || github.event.pull_request.user.login == 'dependabot[bot]' }}
+      ALL_PLATFORMS: ${{ (github.event_name == 'push' && needs.changes.outputs.image == 'true') || github.event.pull_request.user.login == 'dependabot[bot]' }}
       # Registry cache: unlike the GHA cache it is not evicted after 7 days
       # unused, and PRs can read what main wrote
       CACHE_REF: ghcr.io/rodriguestiago0/actualbudget-backup:buildcache
@@ -93,7 +116,7 @@ jobs:
           platforms: ${{ env.ALL_PLATFORMS == 'true' && 'linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7' || 'linux/amd64' }}
           tags: actualbudget-backup:ci
           cache-from: type=registry,ref=${{ env.CACHE_REF }}
-          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref={0},mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true', env.CACHE_REF) || '' }}
+          cache-to: ${{ github.event_name == 'push' && env.ALL_PLATFORMS == 'true' && format('type=registry,ref={0},mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true', env.CACHE_REF) || '' }}
 
       # Rebuilds amd64 from the cache above, to run it
       - name: Load the amd64 image
@@ -125,8 +148,10 @@ jobs:
 
   # Releases everything merged since the last tag, not only this commit:
   # when a newer push cancels this run's build, the newer run releases it.
-  # Commits marked [skip release], or that don't change what goes into the
-  # image (docs, tests, CI), are not released on their own.
+  # Commits marked [skip release], or that change neither the image nor the
+  # systemd units (docs, tests, CI), are not released on their own; see
+  # .github/scripts/release-plan.sh and .github/CONTRIBUTING.md. The release
+  # is created as a draft and only published once its image is.
   release:
     needs: [test, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -153,35 +178,11 @@ jobs:
             exit 0
           fi
 
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $LATEST_TAG"
-
-          RANGE="${LATEST_TAG}..HEAD"
-          if [ "$LATEST_TAG" = "v0.0.0" ]; then
-            RANGE="HEAD"
-          fi
-
-          RELEASE=false
-          BUMP="patch"
-          for COMMIT in $(git rev-list --first-parent "$RANGE"); do
-            MSG=$(git log -1 --format=%B "$COMMIT")
-            SUBJECT=$(git log -1 --format=%s "$COMMIT")
-            if echo "$MSG" | grep -q '\[skip release\]'; then
-              echo "Skipped ([skip release]): $SUBJECT"
-              continue
-            fi
-            if ! git diff --name-only "${COMMIT}^1" "$COMMIT" | grep -qE '^(Dockerfile|\.dockerignore|package(-lock)?\.json|scripts/)'; then
-              echo "Skipped (image unchanged): $SUBJECT"
-              continue
-            fi
-            echo "Included: $SUBJECT"
-            RELEASE=true
-            if echo "$MSG" | grep -q '\[major\]'; then
-              BUMP="major"
-            elif echo "$MSG" | grep -q '\[minor\]' && [ "$BUMP" != major ]; then
-              BUMP="minor"
-            fi
-          done
+          # see the script for what is released and the version markers
+          .github/scripts/release-plan.sh "$RUNNER_TEMP/changes.md" > "$RUNNER_TEMP/plan"
+          RELEASE=$(sed -n 's/^release=//p' "$RUNNER_TEMP/plan")
+          BUMP=$(sed -n 's/^bump=//p' "$RUNNER_TEMP/plan")
+          LATEST_TAG=$(sed -n 's/^latest_tag=//p' "$RUNNER_TEMP/plan")
 
           if [ "$RELEASE" != true ]; then
             echo "Nothing to release"
@@ -220,18 +221,28 @@ jobs:
           fi
 
           echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      # Only the released changes, not every PR merged since the last tag
+      - name: Create a draft GitHub Release
         if: steps.bump.outputs.new_tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.bump.outputs.new_tag }}
+          PREVIOUS_TAG: ${{ steps.bump.outputs.previous_tag }}
+          REPO: ${{ github.repository }}
         run: |
           CLI_VERSION=$(jq -r '.packages["node_modules/@actual-app/cli"].version' package-lock.json)
-          gh release create "$NEW_TAG" \
-            --title "$NEW_TAG" \
-            --notes "Built with @actual-app/cli ${CLI_VERSION}: backups import into Actual ${CLI_VERSION} or newer." \
-            --generate-notes
+          {
+            echo "Built with @actual-app/cli ${CLI_VERSION}: backups import into Actual ${CLI_VERSION} or newer."
+            echo
+            echo "## Changes"
+            echo
+            cat "$RUNNER_TEMP/changes.md"
+            echo
+            echo "**Full changelog**: https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$NEW_TAG" --draft --title "$NEW_TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
   # A release created with GITHUB_TOKEN does not trigger other workflows, so
   # the `release: published` event in docker-image.yml never fires for it.
@@ -248,3 +259,18 @@ jobs:
       contents: read
       attestations: write
       id-token: write
+
+  # Publishes the draft release once its image is on Docker Hub, so a
+  # release never points at an image that failed to push
+  finish-release:
+    needs: [release, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ needs.release.outputs.tag }}
+        run: gh release edit "$NEW_TAG" -R "$GITHUB_REPOSITORY" --draft=false --latest
