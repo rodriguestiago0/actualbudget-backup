@@ -238,26 +238,29 @@ function clear_history() {
         return
     fi
 
-    if [[ "${BACKUP_KEEP_DAYS}" -gt 0 ]]; then
-        for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
-        do
-            color blue "delete ${BACKUP_KEEP_DAYS} days ago backup files $(color yellow "[${RCLONE_REMOTE_X}]")"
+    if [[ "${BACKUP_KEEP_DAYS}" -eq 0 ]]; then
+        return
+    fi
 
-            # only this tool's backup files, so other files and folders in
-            # the remote folder are never deleted
-            # shellcheck disable=SC2086
-            mapfile -t RCLONE_DELETE_LIST < <(rclone ${RCLONE_GLOBAL_FLAG} lsf "${RCLONE_REMOTE_X}" --files-only --include "backup.*" --min-age "${BACKUP_KEEP_DAYS}d")
+    local RETENTION_ERRORS=()
+    for RCLONE_REMOTE_X in "${RCLONE_REMOTE_LIST[@]}"
+    do
+        color blue "delete backup files older than ${BACKUP_KEEP_DAYS} days $(color yellow "[${RCLONE_REMOTE_X}]")"
 
-            for RCLONE_DELETE_FILE in "${RCLONE_DELETE_LIST[@]}"
-            do
-                color yellow "deleting \"${RCLONE_DELETE_FILE}\""
+        # one call that lists and deletes in the same folder, and only this
+        # tool's backup files, so other files and subfolders are never
+        # deleted; -v logs each deleted file
+        # shellcheck disable=SC2086
+        if ! rclone ${RCLONE_GLOBAL_FLAG} delete "${RCLONE_REMOTE_X}" --max-depth 1 \
+            --include 'backup.*.{zip,7z,tar}' --min-age "${BACKUP_KEEP_DAYS}d" -v; then
+            color red "deleting old backup files failed $(color yellow "[${RCLONE_REMOTE_X}]")"
+            RETENTION_ERRORS+=("${RCLONE_REMOTE_X}")
+        fi
+    done
 
-                # shellcheck disable=SC2086
-                if ! rclone ${RCLONE_GLOBAL_FLAG} delete "${RCLONE_REMOTE_X}/${RCLONE_DELETE_FILE}"; then
-                    color red "delete \"${RCLONE_DELETE_FILE}\" failed"
-                fi
-            done
-        done
+    # the backups themselves worked, so this is only a warning
+    if [[ ${#RETENTION_ERRORS[@]} -gt 0 ]]; then
+        send_notification warning "Old backups could not be deleted from: ${RETENTION_ERRORS[*]}. Check the logs."
     fi
 }
 

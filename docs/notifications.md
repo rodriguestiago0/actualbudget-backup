@@ -21,7 +21,7 @@ Each message has a title, such as `✅ Actual Budget Backup Success`, and a text
 
 A backup counts as failed when any budget fails to download, is corrupt, fails to archive or can't be read back from its archive, or when any upload fails.
 
-A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
+A `warning` is sent when the backup works but needs your attention: your Actual server is [older than the Actual CLI](configuration.md#actual-cli-version) in the image, so it can't import the backup until you upgrade it, or [old backups](configuration.md#retention) could not be deleted. Warnings are also sent when `NOTIFICATION_ON` has `failure`, so the default and `failure` get them too.
 
 URLs are checked at startup; invalid ones are logged and ignored. A notification that cannot be sent is logged but never fails the backup. The log never shows the URLs, only the service names, since URLs contain tokens.
 

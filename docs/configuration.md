@@ -53,7 +53,7 @@ docker run --rm \
 
 **`RCLONE_REMOTE_DIR`**: the folder on the remote. It is created when missing.
 
-**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the cleanup reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`.
+**`RCLONE_GLOBAL_FLAG`**: extra [rclone flags](https://rclone.org/flags/) for every rclone command, e.g. `--bwlimit 1M`. Don't add flags that change rclone's output, such as `-P`: the startup check reads it. To use an rclone config file somewhere else, mount it and set `--config /path/to/rclone.conf`.
 
 Remotes can also be defined with rclone's own environment variables instead of a config file, e.g. `RCLONE_CONFIG_MYS3_TYPE: 's3'`. rclone lowercases these names, so set `RCLONE_REMOTE_NAME: 'mys3'`.
 
@@ -73,7 +73,7 @@ Remotes can also be defined with rclone's own environment variables instead of a
 
 **`BACKUP_KEEP_DAYS`**: after a successful backup, delete the backups older than this many days from every destination. `0`, the default, keeps everything.
 
-Only files whose name starts with `backup.` are deleted, never other files or folders. Nothing is deleted after a failed backup, so a run of failures never removes your last good backups.
+Only this tool's backups, files named `backup.<...>.zip`, `.7z` or `.tar` directly in the folder, are deleted, never other files or subfolders. Nothing is deleted after a failed backup, so a run of failures never removes your last good backups. When old backups can't be deleted, a [`warning` notification](notifications.md) is sent; the backup itself still counts as a success.
 
 <br>
 
