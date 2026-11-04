@@ -72,6 +72,10 @@ The Actual server can't be reached, or its HTTPS certificate isn't trusted.
 
 The encryption password is missing or wrong. Each budget reads its own `ACTUAL_BUDGET_E2E_PASSWORD_N`, see [encrypted budgets](e2e-encrypted-backups.md).
 
+#### `download failed` after 15 minutes
+
+Each call to the Actual server is stopped after 15 minutes, so a server that stops answering can't block the later backups. Check that the server is up and responds.
+
 #### `WARNING: your Actual server (...) is older than the Actual CLI`
 
 The backup works, but your server can't import it until you upgrade Actual. It is also sent as a [`warning` notification](notifications.md). A [fresh Actual](restore.md) can. See [Actual CLI version](configuration.md#actual-cli-version).

@@ -52,3 +52,5 @@ systemctl status actualbudget-backup.service     # result of the last backup
 journalctl -u actualbudget-backup.service        # its log
 systemctl list-timers actualbudget-backup.timer  # next run
 ```
+
+A backup that runs longer than 2 hours is stopped and reported as failed, so a hung one doesn't block the next runs. To change it, run `sudo systemctl edit actualbudget-backup.service` and set `TimeoutStartSec=` under `[Service]`.

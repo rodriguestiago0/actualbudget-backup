@@ -15,6 +15,9 @@ Environment=RCLONE_CONFIG=/var/lib/actualbudget-backup/rclone.conf
 # Same variables as .env.example; settings here override the ones above
 EnvironmentFile=/etc/actualbudget-backup/backup.env
 ExecStart=/usr/bin/bash /opt/actualbudget-backup/scripts/backup.sh
+# stop a backup that hangs, so the next run isn't blocked; the stop is
+# reported as a failed backup
+TimeoutStartSec=2h
 
 NoNewPrivileges=yes
 PrivateTmp=yes

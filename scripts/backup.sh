@@ -4,6 +4,8 @@
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/includes.sh"
 
 BACKUP_DIR="backup"
+# limit for each Actual CLI call, so a hung server can't block later runs
+ACTUAL_TIMEOUT_SECONDS=900
 FAILED_COUNT=0
 UPLOADED_COUNT=0
 
@@ -127,7 +129,7 @@ function download_budget() {
     if ! ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
         ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
         ACTUAL_ENCRYPTION_PASSWORD="$2" \
-        actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
+        timeout "${ACTUAL_TIMEOUT_SECONDS}" actual --data-dir "${DATA_DIR}" budgets download "${SYNC_ID}" > /dev/null; then
         color red "download failed \"${SYNC_ID}\""
         rm -rf "${DATA_DIR}"
         return 1
@@ -175,7 +177,7 @@ function check_server_version() {
     CLI_VERSION="$(actual --version 2> /dev/null)"
     SERVER_VERSION="$(ACTUAL_SERVER_URL="${ACTUAL_BUDGET_URL}" \
         ACTUAL_PASSWORD="${ACTUAL_BUDGET_PASSWORD}" \
-        actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+        timeout "${ACTUAL_TIMEOUT_SECONDS}" actual server version 2> /dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
 
     if [[ -z "${SERVER_VERSION}" ]]; then
         color yellow "could not determine the Actual server version (Actual CLI ${CLI_VERSION})"
