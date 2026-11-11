@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.27.1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 
-FROM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS base
+FROM rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466 AS base
 
 # better-sqlite3 is the only native module, and it has no prebuilt binary for
 # 32-bit ARM, where compiling it under QEMU takes about half an hour. Its
@@ -52,7 +52,7 @@ COPY --from=sqlite /out/ /app/node_modules/better-sqlite3/build/Release/
 # Runs on the build platform; it only downloads and verifies the binary.
 # The checksums are pinned here rather than read from the release, so a
 # replaced release asset fails the build. update-shoutrrr.yml updates them.
-FROM --platform=$BUILDPLATFORM rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 AS shoutrrr
+FROM --platform=$BUILDPLATFORM rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466 AS shoutrrr
 
 ARG SHOUTRRR_VERSION="0.22.1"
 ARG SHOUTRRR_SHA256_AMD64="c6621f7a34b631705e5e94d33056d6368901495835ad07166034b644a1d46d86"
